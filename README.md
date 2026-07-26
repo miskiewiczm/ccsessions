@@ -61,13 +61,19 @@ ccsessions
 | `Tab` / `Shift+Tab` | Switch panes |
 | `r` | Resume the selected session (in place) |
 | `c` | Copy the resume command to the clipboard |
-| `a` | Archive ↔ restore session · archive project |
+| `a` | Archive ↔ restore session · archive ↔ restore project |
 | `d` | Delete session / project (with confirmation) |
+| `n` | Rename project (set a display alias) |
 | `Ctrl+R` | Rescan `~/.claude` |
 | `q` | Quit |
 
 `a` and `d` act on the **session** when the Sessions pane is focused and on
 the whole **project** when the Projects pane is focused.
+
+Project names default to the last component of the project's working
+directory. `n` sets a purely cosmetic alias (stored in
+`~/.config/ccsessions/aliases.json` — nothing under `~/.claude` is touched);
+submitting an empty alias removes the entry and restores the default name.
 
 ### Configuration
 
@@ -75,6 +81,8 @@ the whole **project** when the Projects pane is focused.
   conversation pane (default: `nord`). Any name from
   `pygments.styles.get_all_styles()` works, e.g. `monokai`, `dracula`,
   `github-dark`, `one-dark`, `gruvbox-dark`.
+- `~/.config/ccsessions/aliases.json` — project display aliases, managed
+  with the `n` key.
 
 ## How it works
 

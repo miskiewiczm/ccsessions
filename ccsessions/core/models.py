@@ -54,11 +54,16 @@ class Project:
     encoded_dir: Path
     sessions: list[Session] = field(default_factory=list)
     is_archived: bool = False  # directory lives in ~/.claude/projects-archive/
+    alias: str = ""  # user-defined display name (see core.aliases)
+
+    @property
+    def default_name(self) -> str:
+        name = Path(self.project_path).name
+        return name or self.project_path
 
     @property
     def display_name(self) -> str:
-        name = Path(self.project_path).name
-        return name or self.project_path
+        return self.alias or self.default_name
 
     @property
     def total_tokens(self) -> TokenStats:

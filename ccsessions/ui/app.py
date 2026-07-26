@@ -15,8 +15,9 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Header, Static
+from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
+from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
 from ..core.discovery import discover_projects
 from ..core.manage import (
@@ -124,6 +125,54 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class RenameScreen(ModalScreen[str | None]):
+    """Prompt for a project alias. Empty input restores the default name."""
+
+    DEFAULT_CSS = """
+    RenameScreen {
+        align: center middle;
+    }
+
+    #rename-dialog {
+        width: 70;
+        height: auto;
+        padding: 1 2;
+        border: round $accent;
+        background: $surface;
+    }
+
+    #rename-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, default_name: str, current_alias: str) -> None:
+        super().__init__()
+        self._default_name = default_name
+        self._current_alias = current_alias
+
+    def compose(self) -> ComposeResult:
+        with Container(id="rename-dialog"):
+            yield Static(f"Alias for “{self._default_name}”", id="rename-title")
+            yield Static(
+                "Enter = save · Escape = cancel · empty = restore default name",
+                id="rename-hint",
+            )
+            yield Input(value=self._current_alias, placeholder=self._default_name)
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class CCSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -209,6 +258,7 @@ class CCSessionsApp(App):
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
         Binding("d", "delete", "Delete"),
+        Binding("n", "rename", "Rename"),
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
@@ -220,6 +270,7 @@ class CCSessionsApp(App):
         super().__init__()
         self.projects: list[Project] = []
         self._cache = TokenCache()
+        self._aliases = ProjectAliases()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -265,6 +316,7 @@ class CCSessionsApp(App):
         """Disk scan off the UI thread — the interface stays responsive."""
         started = time.monotonic()
         projects = discover_projects(cache=self._cache)
+        self._aliases.apply(projects)
         self._cache.save()
         elapsed = time.monotonic() - started
         self.call_from_thread(self._apply_projects, projects, elapsed)
@@ -585,6 +637,31 @@ class CCSessionsApp(App):
     def _focus_on_projects(self) -> bool:
         focused = self.focused
         return focused is not None and focused.id == "projects-table"
+
+    def action_rename(self) -> None:
+        p = self._current_project()
+        if p is None:
+            return
+
+        def on_rename(result: str | None) -> None:
+            if result is None:
+                return
+            alias = result.strip()
+            if alias:
+                self._aliases.set(p.project_path, alias)
+                msg = f"Alias set: {alias}"
+            else:
+                self._aliases.remove(p.project_path)
+                msg = f"Alias removed — default name “{p.default_name}” restored"
+            self._aliases.save()
+            p.alias = alias
+            ptable = self.query_one("#projects-table", DataTable)
+            row = ptable.cursor_row
+            self._refresh_projects_table()
+            ptable.move_cursor(row=row)
+            self._set_status(msg)
+
+        self.push_screen(RenameScreen(p.default_name, p.alias), on_rename)
 
     def action_archive(self) -> None:
         if self._focus_on_projects():
