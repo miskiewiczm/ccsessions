@@ -77,6 +77,11 @@ submitting an empty alias removes the entry and restores the default name.
 
 ### Configuration
 
+- `CCSESSIONS_THEME` — Textual theme for the whole app (default:
+  `ansi-dark`, which follows your terminal's palette). Any registered
+  Textual theme works, e.g. `nord`, `gruvbox`, `tokyo-night`,
+  `catppuccin-mocha`, `dracula`, `textual-dark`. Preview themes at runtime
+  with Ctrl+P → "Change theme".
 - `CCSESSIONS_CODE_THEME` — pygments theme for code blocks in the
   conversation pane (default: `nord`). Any name from
   `pygments.styles.get_all_styles()` works, e.g. `monokai`, `dracula`,

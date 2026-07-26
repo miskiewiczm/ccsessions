@@ -38,6 +38,10 @@ from ..core.resume import ResumeRequest, build_resume_command
 # any name from `pygments.styles.get_all_styles()` works
 CODE_THEME = os.environ.get("CCSESSIONS_CODE_THEME", "nord")
 
+# Textual theme for the whole app; any name from the theme registry
+# (see Ctrl+P → "Change theme"), e.g. nord, gruvbox, tokyo-night
+APP_THEME = os.environ.get("CCSESSIONS_THEME", "ansi-dark")
+
 
 def fmt_tokens(t: TokenStats) -> str:
     total = t.total
@@ -295,7 +299,10 @@ class CCSessionsApp(App):
     def on_mount(self) -> None:
         self.title = "Claude Code Sessions"
         self.sub_title = ""
-        self.theme = "ansi-dark"  # change via Ctrl+P → "Change theme"
+        try:
+            self.theme = APP_THEME
+        except Exception:
+            self.theme = "ansi-dark"  # unknown theme name — fall back
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_columns("●", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
@@ -307,6 +314,11 @@ class CCSessionsApp(App):
         self.action_refresh()
         ptable.focus()
         self.watch(self.screen, "focused", self._highlight_focused_pane)
+        # re-render the details pane when the theme changes (Ctrl+P)
+        self.watch(self, "theme", self._on_theme_changed, init=False)
+
+    def _on_theme_changed(self) -> None:
+        self._update_preview(self._current_session())
 
     def action_refresh(self) -> None:
         self._set_status("Scanning...")
@@ -461,6 +473,14 @@ class CCSessionsApp(App):
         if len(first_prompt) > 600:
             first_prompt = first_prompt[:597] + "..."
 
+        # colors follow the active Textual theme instead of being hardcoded
+        th = self.current_theme
+        c_input = th.success or "green"
+        c_output = th.secondary or "magenta"
+        c_read = th.primary or "cyan"
+        c_write = th.accent or "blue"
+        c_total = th.warning or "yellow"
+
         cwd_exists = bool(session.project_path) and Path(session.project_path).is_dir()
         if session.is_archived or session.is_missing:
             resume_line = ""
@@ -476,7 +496,7 @@ class CCSessionsApp(App):
             resume_line = (
                 f"\n[bold]Resume command[/bold] [bright_black](c = copy to clipboard)[/bright_black]"
                 f"{warn}\n"
-                f"[#88c0d0]{escape(cmd)}[/]\n"
+                f"[{c_read}]{escape(cmd)}[/]\n"
             )
 
         t = session.tokens
@@ -491,11 +511,11 @@ class CCSessionsApp(App):
             f"[bright_black]Messages:[/bright_black] [yellow]{session.message_count}[/yellow]\n"
             f"\n"
             f"[bold]Tokens[/bold]\n"
-            f"  [#a3be8c]input:[/]       [white]{t.input:>12,}[/]\n"
-            f"  [#b48ead]output:[/]      [white]{t.output:>12,}[/]\n"
-            f"  [#88c0d0]cache read:[/]  [white]{t.cache_read:>12,}[/]\n"
-            f"  [#81a1c1]cache write:[/] [white]{t.cache_write:>12,}[/]\n"
-            f"  [bold]Σ total:[/]     [bold #ebcb8b]{t.total:>12,}[/]\n"
+            f"  [{c_input}]input:[/]       [white]{t.input:>12,}[/]\n"
+            f"  [{c_output}]output:[/]      [white]{t.output:>12,}[/]\n"
+            f"  [{c_read}]cache read:[/]  [white]{t.cache_read:>12,}[/]\n"
+            f"  [{c_write}]cache write:[/] [white]{t.cache_write:>12,}[/]\n"
+            f"  [bold]Σ total:[/]     [bold {c_total}]{t.total:>12,}[/]\n"
             f"{resume_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
