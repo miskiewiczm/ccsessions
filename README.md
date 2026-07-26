@@ -3,9 +3,7 @@
 A fast terminal UI for browsing, previewing, resuming and managing
 [Claude Code](https://claude.com/claude-code) sessions.
 
-<!-- TODO: add a screenshot or GIF here, e.g.:
-![ccsessions demo](docs/demo.gif)
-Record one with https://github.com/charmbracelet/vhs -->
+![ccsessions in a fullscreen terminal — wide layout with a full-height conversation pane](assets/ccsessions_fullscreen.png)
 
 ## Features
 
@@ -24,7 +22,9 @@ Record one with https://github.com/charmbracelet/vhs -->
   detected and marked (✕)
 - **Responsive layout** — wide terminals get a side-by-side layout with a
   full-height conversation pane; narrow (half-screen) terminals get a stacked
-  layout with a full-width conversation pane
+  layout with a full-width conversation pane:
+
+  <img src="assets/ccsessions_halfscreen.png" alt="ccsessions in a half-screen terminal — stacked layout with a full-width conversation pane" width="70%">
 - **Fast** — token stats are cached per transcript (invalidated by
   mtime + size), scanning runs off the UI thread, and conversation previews
   read only the tail of multi-megabyte files
