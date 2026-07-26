@@ -318,6 +318,16 @@ class CCSessionsApp(App):
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
     def _on_theme_changed(self) -> None:
+        # DataTable caches rendered rows, so a theme switch leaves stale
+        # colors behind — rebuild both tables, keeping the cursor in place
+        ptable = self.query_one("#projects-table", DataTable)
+        stable = self.query_one("#sessions-table", DataTable)
+        prow, srow = ptable.cursor_row, stable.cursor_row
+        self._refresh_projects_table()
+        if 0 <= prow < ptable.row_count:
+            ptable.move_cursor(row=prow)
+        if 0 <= srow < stable.row_count:
+            stable.move_cursor(row=srow)
         self._update_preview(self._current_session())
 
     def action_refresh(self) -> None:
