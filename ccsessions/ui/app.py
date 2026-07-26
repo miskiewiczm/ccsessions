@@ -450,24 +450,34 @@ class CCSessionsApp(App):
             widget.update("[dim]No session selected[/dim]")
             return
 
+        # colors follow the active Textual theme instead of being hardcoded;
+        # plain names (red, cyan…) in Textual markup would be vivid web colors
+        th = self.current_theme
+        c_success = th.success or "ansi_green"
+        c_warning = th.warning or "ansi_yellow"
+        c_error = th.error or "ansi_red"
+        c_primary = th.primary or "ansi_cyan"
+        c_secondary = th.secondary or "ansi_magenta"
+        c_accent = th.accent or "ansi_blue"
+
         if session.is_missing:
             state = "[bright_black]✕ JSONL file not on this machine — cannot resume[/bright_black]"
         elif session.is_archived:
-            state = "[red]▪ archived (a = restore)[/red]"
+            state = f"[{c_error}]▪ archived (a = restore)[/]"
         elif session.is_live:
-            state = "[bright_green]● live[/bright_green]"
+            state = f"[{c_success}]● live[/]"
         else:
-            state = "[yellow]○ inactive[/yellow]"
-        sidechain = "  [yellow](sidechain)[/yellow]" if session.is_sidechain else ""
+            state = f"[{c_warning}]○ inactive[/]"
+        sidechain = f"  [{c_warning}](sidechain)[/]" if session.is_sidechain else ""
         branch = (
-            f"  [magenta]⎇ {escape(session.git_branch)}[/magenta]"
+            f"  [{c_secondary}]⎇ {escape(session.git_branch)}[/]"
             if session.git_branch
             else ""
         )
 
         # title line only when the session actually has a summary
         title_line = (
-            f"[bold cyan]{escape(session.summary)}[/bold cyan]\n" if session.summary else ""
+            f"[bold {c_primary}]{escape(session.summary)}[/]\n" if session.summary else ""
         )
         first_prompt = session.first_prompt.strip()
         if not first_prompt:
@@ -475,14 +485,6 @@ class CCSessionsApp(App):
         # truncate very long first prompt for preview
         if len(first_prompt) > 600:
             first_prompt = first_prompt[:597] + "..."
-
-        # colors follow the active Textual theme instead of being hardcoded
-        th = self.current_theme
-        c_input = th.success or "green"
-        c_output = th.secondary or "magenta"
-        c_read = th.primary or "cyan"
-        c_write = th.accent or "blue"
-        c_total = th.warning or "yellow"
 
         cwd_exists = bool(session.project_path) and Path(session.project_path).is_dir()
         if session.is_archived or session.is_missing:
@@ -492,14 +494,14 @@ class CCSessionsApp(App):
                 ResumeRequest(session_id=session.session_id, cwd=session.project_path)
             )
             warn = (
-                "\n[yellow]⚠ project directory no longer exists — no cd[/yellow]"
+                f"\n[{c_warning}]⚠ project directory no longer exists — no cd[/]"
                 if not cwd_exists
                 else ""
             )
             resume_line = (
                 f"\n[bold]Resume command[/bold] [bright_black](c = copy to clipboard)[/bright_black]"
                 f"{warn}\n"
-                f"[{c_read}]{escape(cmd)}[/]\n"
+                f"[{c_primary}]{escape(cmd)}[/]\n"
             )
 
         t = session.tokens
@@ -508,17 +510,17 @@ class CCSessionsApp(App):
             f"{state}{sidechain}{branch}\n\n"
             f"[bright_black]ID:[/bright_black]  [white]{session.session_id}[/white]\n"
             f"[bright_black]CWD:[/bright_black] [white]{escape(short_path(session.project_path))}[/white]"
-            f"{'' if cwd_exists else ' [yellow](does not exist)[/yellow]'}\n"
+            f"{'' if cwd_exists else f' [{c_warning}](does not exist)[/]'}\n"
             f"[bright_black]Created:[/bright_black]  [white]{fmt_date(session.created)}[/white]\n"
             f"[bright_black]Modified:[/bright_black] [white]{fmt_date(session.modified)}[/white]\n"
-            f"[bright_black]Messages:[/bright_black] [yellow]{session.message_count}[/yellow]\n"
+            f"[bright_black]Messages:[/bright_black] [{c_warning}]{session.message_count}[/]\n"
             f"\n"
             f"[bold]Tokens[/bold]\n"
-            f"  [{c_input}]input:[/]       [white]{t.input:>12,}[/]\n"
-            f"  [{c_output}]output:[/]      [white]{t.output:>12,}[/]\n"
-            f"  [{c_read}]cache read:[/]  [white]{t.cache_read:>12,}[/]\n"
-            f"  [{c_write}]cache write:[/] [white]{t.cache_write:>12,}[/]\n"
-            f"  [bold]Σ total:[/]     [bold {c_total}]{t.total:>12,}[/]\n"
+            f"  [{c_success}]input:[/]       [white]{t.input:>12,}[/]\n"
+            f"  [{c_secondary}]output:[/]      [white]{t.output:>12,}[/]\n"
+            f"  [{c_primary}]cache read:[/]  [white]{t.cache_read:>12,}[/]\n"
+            f"  [{c_accent}]cache write:[/] [white]{t.cache_write:>12,}[/]\n"
+            f"  [bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
             f"{resume_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
