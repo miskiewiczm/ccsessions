@@ -61,6 +61,19 @@ def fmt_date(dt: datetime | None) -> str:
         return "-"
 
 
+def rich_color(theme_color: str | None, fallback: str) -> str:
+    """Translate a Textual theme color into a Rich-parsable style color.
+
+    Theme colors are either hex strings (pass through) or "ansi_*" names,
+    which Rich spells without the prefix (ansi_green -> green).
+    """
+    if not theme_color:
+        return fallback
+    if theme_color.startswith("ansi_"):
+        return theme_color[len("ansi_"):]
+    return theme_color
+
+
 def short_path(path: str) -> str:
     home = str(Path.home())
     if path == home:
@@ -380,28 +393,41 @@ class CCSessionsApp(App):
             + "  ·  r=resume  c=copy  a=archive  d=delete  q=quit"
         )
 
+    def _palette(self) -> dict[str, str]:
+        """Rich-safe colors from the active theme for table/conversation content."""
+        th = self.current_theme
+        return {
+            "success": rich_color(th.success, "green"),
+            "warning": rich_color(th.warning, "yellow"),
+            "error": rich_color(th.error, "red"),
+            "primary": rich_color(th.primary, "cyan"),
+            "secondary": rich_color(th.secondary, "magenta"),
+            "accent": rich_color(th.accent, "blue"),
+        }
+
     def _refresh_projects_table(self) -> None:
         table = self.query_one("#projects-table", DataTable)
+        pal = self._palette()
         table.clear()
         for p in self.projects:
             active = [s for s in p.sessions if not (s.is_archived or s.is_missing)]
             archived = [s for s in p.sessions if s.is_archived or s.is_missing]
             all_archived = not active
             if p.is_archived:
-                live = Text("▪", style="red")
+                live = Text("▪", style=pal["error"])
             elif p.has_live:
-                live = Text("●", style="bright_green")
+                live = Text("●", style=pal["success"])
             else:
                 live = Text(" ")
-            name_style = "bright_black italic" if all_archived else "bold cyan"
+            name_style = "bright_black italic" if all_archived else f"bold {pal['primary']}"
             name = Text(p.display_name, style=name_style)
             sess_label = (
                 f"{len(active)}"
                 if not archived
                 else f"{len(active)}+{len(archived)}"
             )
-            count = Text(sess_label, style="yellow", justify="right")
-            tok_style = "bright_black" if all_archived else "magenta"
+            count = Text(sess_label, style=pal["warning"], justify="right")
+            tok_style = "bright_black" if all_archived else pal["secondary"]
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
             table.add_row(live, name, count, tokens)
         if table.row_count:
@@ -422,14 +448,15 @@ class CCSessionsApp(App):
 
     def _update_sessions_table(self, sessions: list[Session]) -> None:
         table = self.query_one("#sessions-table", DataTable)
+        pal = self._palette()
         table.clear()
         for s in sessions:
             if s.is_missing:
                 marker = Text("✕", style="bright_black")
             elif s.is_archived:
-                marker = Text("▪", style="red")
+                marker = Text("▪", style=pal["error"])
             elif s.is_live:
-                marker = Text("●", style="bright_green")
+                marker = Text("●", style=pal["success"])
             else:
                 marker = Text(" ")
             inactive = s.is_missing or s.is_archived
@@ -445,9 +472,9 @@ class CCSessionsApp(App):
             else:
                 desc_style = "white"
             desc = Text(desc_raw, style=desc_style)
-            count_style = "bright_black" if inactive else "yellow"
+            count_style = "bright_black" if inactive else pal["warning"]
             count = Text(str(s.message_count), style=count_style, justify="right")
-            tok_style = "bright_black" if inactive else "magenta"
+            tok_style = "bright_black" if inactive else pal["secondary"]
             tok_text = "-" if s.is_missing else fmt_tokens(s.tokens)
             tokens = Text(tok_text, style=tok_style, justify="right")
             modified = Text(fmt_date(s.modified), style="bright_black")
@@ -556,6 +583,7 @@ class CCSessionsApp(App):
         if not entries:
             widget.update(Text("(empty conversation)", style="dim"))
             return
+        pal = self._palette()
         parts: list[Text | Padding] = []
         for role, text in entries:
             if role == "tool":
@@ -574,10 +602,10 @@ class CCSessionsApp(App):
             if role == "user":
                 # user prompts as plain text — markdown silently drops raw
                 # tags/pseudo-HTML, and fidelity matters more here
-                parts.append(Text("▌ You", style="bold cyan"))
+                parts.append(Text("▌ You", style=f"bold {pal['primary']}"))
                 parts.append(Padding(Text(text, style="white"), (0, 0, 1, 2)))
             else:
-                parts.append(Text("▌ Claude", style="bold green"))
+                parts.append(Text("▌ Claude", style=f"bold {pal['success']}"))
                 parts.append(Padding(Markdown(text, code_theme=CODE_THEME), (0, 0, 1, 2)))
         widget.update(Group(*parts))
         # show the end of the conversation — that's where the freshest context is
