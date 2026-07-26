@@ -378,7 +378,7 @@ class CCSessionsApp(App):
             archived = [s for s in p.sessions if s.is_archived or s.is_missing]
             all_archived = not active
             if p.is_archived:
-                live = Text("▪", style="yellow")
+                live = Text("▪", style="red")
             elif p.has_live:
                 live = Text("●", style="bright_green")
             else:
@@ -417,7 +417,7 @@ class CCSessionsApp(App):
             if s.is_missing:
                 marker = Text("✕", style="bright_black")
             elif s.is_archived:
-                marker = Text("▪", style="yellow")
+                marker = Text("▪", style="red")
             elif s.is_live:
                 marker = Text("●", style="bright_green")
             else:
@@ -453,11 +453,11 @@ class CCSessionsApp(App):
         if session.is_missing:
             state = "[bright_black]✕ JSONL file not on this machine — cannot resume[/bright_black]"
         elif session.is_archived:
-            state = "[yellow]▪ archived (a = restore)[/yellow]"
+            state = "[red]▪ archived (a = restore)[/red]"
         elif session.is_live:
             state = "[bright_green]● live[/bright_green]"
         else:
-            state = "[dim]○ finished[/dim]"
+            state = "[yellow]○ inactive[/yellow]"
         sidechain = "  [yellow](sidechain)[/yellow]" if session.is_sidechain else ""
         branch = (
             f"  [magenta]⎇ {escape(session.git_branch)}[/magenta]"
@@ -465,7 +465,10 @@ class CCSessionsApp(App):
             else ""
         )
 
-        title = escape(session.summary or "(no summary)")
+        # title line only when the session actually has a summary
+        title_line = (
+            f"[bold cyan]{escape(session.summary)}[/bold cyan]\n" if session.summary else ""
+        )
         first_prompt = session.first_prompt.strip()
         if not first_prompt:
             first_prompt = "(none)"
@@ -501,7 +504,7 @@ class CCSessionsApp(App):
 
         t = session.tokens
         text = (
-            f"[bold cyan]{title}[/bold cyan]\n"
+            f"{title_line}"
             f"{state}{sidechain}{branch}\n\n"
             f"[bright_black]ID:[/bright_black]  [white]{session.session_id}[/white]\n"
             f"[bright_black]CWD:[/bright_black] [white]{escape(short_path(session.project_path))}[/white]"
