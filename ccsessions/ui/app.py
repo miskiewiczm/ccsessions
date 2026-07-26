@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,11 @@ from ..core.manage import (
 from ..core.models import Project, Session, TokenStats
 from ..core.parser import read_conversation_tail
 from ..core.resume import ResumeRequest, build_resume_command
+
+
+# pygments style for fenced code blocks in the conversation pane;
+# any name from `pygments.styles.get_all_styles()` works
+CODE_THEME = os.environ.get("CCSESSIONS_CODE_THEME", "nord")
 
 
 def fmt_tokens(t: TokenStats) -> str:
@@ -474,7 +480,7 @@ class CCSessionsApp(App):
                 parts.append(Padding(Text(text, style="white"), (0, 0, 1, 2)))
             else:
                 parts.append(Text("▌ Claude", style="bold green"))
-                parts.append(Padding(Markdown(text), (0, 0, 1, 2)))
+                parts.append(Padding(Markdown(text, code_theme=CODE_THEME), (0, 0, 1, 2)))
         widget.update(Group(*parts))
         # show the end of the conversation — that's where the freshest context is
         self.call_after_refresh(scroll.scroll_end, animate=False)

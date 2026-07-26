@@ -69,6 +69,13 @@ ccsessions
 `a` and `d` act on the **session** when the Sessions pane is focused and on
 the whole **project** when the Projects pane is focused.
 
+### Configuration
+
+- `CCSESSIONS_CODE_THEME` — pygments theme for code blocks in the
+  conversation pane (default: `nord`). Any name from
+  `pygments.styles.get_all_styles()` works, e.g. `monokai`, `dracula`,
+  `github-dark`, `one-dark`, `gruvbox-dark`.
+
 ## How it works
 
 ccsessions reads the data Claude Code already keeps on disk:
