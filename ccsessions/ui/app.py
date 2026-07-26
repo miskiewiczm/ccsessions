@@ -257,6 +257,7 @@ class CCSessionsApp(App):
         Binding("r", "resume", "Resume"),
         Binding("c", "copy_resume", "Copy command"),
         Binding("a", "archive", "Archive"),
+        Binding("a", "restore", "Restore"),
         Binding("d", "delete", "Delete"),
         Binding("n", "rename", "Rename"),
         Binding("ctrl+r", "refresh", "Refresh"),
@@ -552,6 +553,7 @@ class CCSessionsApp(App):
         for widget_id in ("#projects-table", "#sessions-table", "#info-scroll", "#conv-scroll"):
             widget = self.query_one(widget_id)
             widget.set_class(widget is focused, "active")
+        self.refresh_bindings()
 
     def _set_status(self, msg: str) -> None:
         try:
@@ -571,6 +573,8 @@ class CCSessionsApp(App):
             )
             if 0 <= event.cursor_row < len(sessions):
                 self._update_preview(sessions[event.cursor_row])
+        # the footer label of `a` (Archive/Restore) depends on the selection
+        self.refresh_bindings()
 
     def action_cursor_down(self) -> None:
         focused = self.focused
@@ -663,6 +667,26 @@ class CCSessionsApp(App):
 
         self.push_screen(RenameScreen(p.default_name, p.alias), on_rename)
 
+    def _target_is_archived(self) -> bool:
+        """Is the item `a` would act on (project or session) archived?"""
+        if self._focus_on_projects():
+            p = self._current_project()
+            return p is not None and p.is_archived
+        p = self._current_project()
+        if p is not None and p.is_archived:
+            return True
+        s = self._current_session()
+        return s is not None and s.is_archived
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        # `a` is bound twice; exactly one of archive/restore is active,
+        # so the footer label follows the selected item
+        if action == "archive":
+            return not self._target_is_archived()
+        if action == "restore":
+            return self._target_is_archived()
+        return True
+
     def action_archive(self) -> None:
         if self._focus_on_projects():
             p = self._current_project()
@@ -673,25 +697,13 @@ class CCSessionsApp(App):
                 self.bell()
                 return
             try:
-                if p.is_archived:
-                    restore_project(p)
-                    msg = f"Project “{p.display_name}” restored from archive"
-                else:
-                    dest = archive_project(p)
-                    msg = f"Project “{p.display_name}” moved to {dest.parent}"
+                dest = archive_project(p)
             except ManageError as e:
                 self._set_status(f"Archive failed: {e}")
                 self.bell()
                 return
-            self._set_status(msg)
+            self._set_status(f"Project “{p.display_name}” moved to {dest.parent}")
             self.action_refresh()
-            return
-        project = self._current_project()
-        if project is not None and project.is_archived:
-            self._set_status(
-                "Project is archived — restore the whole project (a on Projects pane)"
-            )
-            self.bell()
             return
         s = self._current_session()
         if s is None:
@@ -705,17 +717,45 @@ class CCSessionsApp(App):
             self.bell()
             return
         try:
-            if s.is_archived:
-                restore_session(s)
-                verb = "restored from archive"
-            else:
-                archive_session(s)
-                verb = "archived (a = restore)"
+            archive_session(s)
         except ManageError as e:
             self._set_status(f"Error: {e}")
             self.bell()
             return
-        self._set_status(f"Session {verb}: {s.display_title[:40]}")
+        self._set_status(f"Session archived (a = restore): {s.display_title[:40]}")
+        self.action_refresh()
+
+    def action_restore(self) -> None:
+        if self._focus_on_projects():
+            p = self._current_project()
+            if p is None:
+                return
+            try:
+                restore_project(p)
+            except ManageError as e:
+                self._set_status(f"Restore failed: {e}")
+                self.bell()
+                return
+            self._set_status(f"Project “{p.display_name}” restored from archive")
+            self.action_refresh()
+            return
+        p = self._current_project()
+        if p is not None and p.is_archived:
+            self._set_status(
+                "Project is archived — restore the whole project (a on Projects pane)"
+            )
+            self.bell()
+            return
+        s = self._current_session()
+        if s is None:
+            return
+        try:
+            restore_session(s)
+        except ManageError as e:
+            self._set_status(f"Restore failed: {e}")
+            self.bell()
+            return
+        self._set_status(f"Session restored from archive: {s.display_title[:40]}")
         self.action_refresh()
 
     def action_delete(self) -> None:
