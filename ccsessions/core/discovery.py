@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .cache import TokenCache
 from .live import get_live_session_ids
-from .manage import ARCHIVE_SUBDIR
+from .manage import ARCHIVE_SUBDIR, PROJECTS_ARCHIVE_DIR
 from .models import Project, Session, TokenStats
 from .parser import extract_cwd, get_token_stats
 
@@ -138,9 +138,21 @@ def _load_project(
     return Project(project_path=project_path, encoded_dir=proj_dir, sessions=sessions)
 
 
+def _latest_modified(p: Project) -> datetime:
+    return max((s.modified or datetime.min) for s in p.sessions)
+
+
 def discover_projects(
-    base: Path = DEFAULT_PROJECTS_DIR, cache: TokenCache | None = None
+    base: Path = DEFAULT_PROJECTS_DIR,
+    cache: TokenCache | None = None,
+    archive_base: Path | None = None,
 ) -> list[Project]:
+    """Scan projects (and archived projects) under ~/.claude.
+
+    When `archive_base` is None it defaults to PROJECTS_ARCHIVE_DIR, but only
+    for the real base directory — callers passing a custom `base` (tests)
+    never get the user's archive mixed in unless they ask for it.
+    """
     if not base.is_dir():
         return []
     live_ids = get_live_session_ids()
@@ -152,8 +164,23 @@ def discover_projects(
         if project.sessions:
             projects.append(project)
     # newest project first (by latest session modified)
-    projects.sort(
-        key=lambda p: max((s.modified or datetime.min) for s in p.sessions),
-        reverse=True,
-    )
-    return projects
+    projects.sort(key=_latest_modified, reverse=True)
+
+    if archive_base is None and base == DEFAULT_PROJECTS_DIR:
+        archive_base = PROJECTS_ARCHIVE_DIR
+    archived: list[Project] = []
+    if archive_base is not None and archive_base.is_dir():
+        for proj_dir in sorted(archive_base.iterdir()):
+            if not proj_dir.is_dir():
+                continue
+            project = _load_project(proj_dir, live_ids, cache)
+            if not project.sessions:
+                continue
+            project.is_archived = True
+            for s in project.sessions:
+                s.is_archived = True
+                s.is_live = False
+            archived.append(project)
+        archived.sort(key=_latest_modified, reverse=True)
+    # archived projects always come after active ones
+    return projects + archived

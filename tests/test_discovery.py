@@ -59,6 +59,22 @@ def test_empty_base_yields_no_projects(tmp_path):
     assert discover_projects(base=tmp_path / "nope") == []
 
 
+def test_archived_projects_listed_after_active(fake_base, tmp_path):
+    arch_base = tmp_path / "projects-archive"
+    arch_proj = arch_base / "-tmp-old-project"
+    arch_proj.mkdir(parents=True)
+    sid2 = "33333333-aaaa-bbbb-cccc-000000000003"
+    write_transcript(arch_proj / f"{sid2}.jsonl", cwd="/tmp/old-project")
+
+    projects = discover_projects(base=fake_base, archive_base=arch_base)
+    assert len(projects) == 2
+    assert not projects[0].is_archived
+    archived = projects[1]
+    assert archived.is_archived
+    # sessions of an archived project are flagged and never live
+    assert all(s.is_archived and not s.is_live for s in archived.sessions)
+
+
 def test_project_index_metadata(fake_base):
     # a second, newer project should sort first
     proj2 = fake_base / "-tmp-newer"

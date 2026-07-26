@@ -73,6 +73,22 @@ def test_archive_project_moves_directory(fake_base, tmp_path):
     assert discover_projects(base=fake_base) == []
 
 
+def test_restore_project_moves_directory_back(fake_base, tmp_path):
+    arch_base = tmp_path / "projects-archive"
+    with patch.object(manage, "PROJECTS_ARCHIVE_DIR", arch_base), patch.object(
+        manage, "PROJECTS_DIR", fake_base
+    ):
+        project = discover_projects(base=fake_base)[0]
+        archive_project(project)
+        archived = discover_projects(base=fake_base, archive_base=arch_base)[0]
+        assert archived.is_archived
+        manage.restore_project(archived)
+    assert (fake_base / "-tmp-fake-project").is_dir()
+    assert not (arch_base / "-tmp-fake-project").exists()
+    restored = discover_projects(base=fake_base, archive_base=arch_base)
+    assert len(restored) == 1 and not restored[0].is_archived
+
+
 def test_delete_project_removes_directory(fake_base):
     project = discover_projects(base=fake_base)[0]
     delete_project(project)

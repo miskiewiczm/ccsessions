@@ -7,6 +7,7 @@ from pathlib import Path
 from .models import Project, Session
 
 ARCHIVE_SUBDIR = "archived"
+PROJECTS_DIR = Path.home() / ".claude" / "projects"
 PROJECTS_ARCHIVE_DIR = Path.home() / ".claude" / "projects-archive"
 
 
@@ -85,6 +86,20 @@ def archive_project(project: Project) -> Path:
     dest = PROJECTS_ARCHIVE_DIR / project.encoded_dir.name
     if dest.exists():
         raise ManageError(f"archive already contains directory {dest.name}")
+    try:
+        shutil.move(str(project.encoded_dir), str(dest))
+    except OSError as e:
+        raise ManageError(str(e)) from e
+    return dest
+
+
+def restore_project(project: Project) -> Path:
+    """Move an archived project directory back into ~/.claude/projects/."""
+    if not project.encoded_dir.is_dir():
+        raise ManageError("project directory not found")
+    dest = PROJECTS_DIR / project.encoded_dir.name
+    if dest.exists():
+        raise ManageError(f"projects directory already contains {dest.name}")
     try:
         shutil.move(str(project.encoded_dir), str(dest))
     except OSError as e:

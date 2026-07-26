@@ -53,6 +53,7 @@ class Project:
     project_path: str
     encoded_dir: Path
     sessions: list[Session] = field(default_factory=list)
+    is_archived: bool = False  # directory lives in ~/.claude/projects-archive/
 
     @property
     def display_name(self) -> str:

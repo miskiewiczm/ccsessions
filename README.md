@@ -88,9 +88,10 @@ ccsessions reads the data Claude Code already keeps on disk:
 
 Archiving a session moves its transcript into an `archived/` subdirectory of
 the project folder (invisible to `claude --resume`, fully restorable).
-Archiving a project moves the whole folder to `~/.claude/projects-archive/`.
-Deleting removes the transcript and its index entry. Token-stats caching
-lives in `~/.cache/ccsessions/`.
+Archiving a project moves the whole folder to `~/.claude/projects-archive/`;
+archived projects stay listed (dimmed, ▪) after the active ones and can be
+restored with `a`. Deleting removes the transcript and its index entry.
+Token-stats caching lives in `~/.cache/ccsessions/`.
 
 > **Note:** Claude Code automatically deletes transcripts older than its
 > `cleanupPeriodDays` setting (30 days by default). If you rely on your

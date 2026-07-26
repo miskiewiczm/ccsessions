@@ -25,6 +25,7 @@ from ..core.manage import (
     archive_session,
     delete_project,
     delete_session,
+    restore_project,
     restore_session,
 )
 from ..core.models import Project, Session, TokenStats
@@ -292,8 +293,12 @@ class CCSessionsApp(App):
             extras.append(f"+{archived} archived")
         if missing:
             extras.append(f"+{missing} no file")
+        proj_archived = sum(1 for p in self.projects if p.is_archived)
+        proj_label = f"{len(self.projects) - proj_archived} projects" + (
+            f" (+{proj_archived} archived)" if proj_archived else ""
+        )
         self._set_status(
-            f"{len(self.projects)} projects  ·  {active} sessions"
+            f"{proj_label}  ·  {active} sessions"
             + (f" ({', '.join(extras)})" if extras else "")
             + f"  ·  {live_count} live"
             + f"  ·  scan {elapsed:.1f}s"
@@ -307,7 +312,12 @@ class CCSessionsApp(App):
             active = [s for s in p.sessions if not (s.is_archived or s.is_missing)]
             archived = [s for s in p.sessions if s.is_archived or s.is_missing]
             all_archived = not active
-            live = Text("●", style="bright_green") if p.has_live else Text(" ")
+            if p.is_archived:
+                live = Text("▪", style="yellow")
+            elif p.has_live:
+                live = Text("●", style="bright_green")
+            else:
+                live = Text(" ")
             name_style = "bright_black italic" if all_archived else "bold cyan"
             name = Text(p.display_name, style=name_style)
             sess_label = (
@@ -548,7 +558,13 @@ class CCSessionsApp(App):
             self.bell()
             return None
         if s.is_archived:
-            self._set_status("Session is archived — restore it first (a)")
+            p = self._current_project()
+            if p is not None and p.is_archived:
+                self._set_status(
+                    "Project is archived — restore the whole project (a on Projects pane)"
+                )
+            else:
+                self._set_status("Session is archived — restore it first (a)")
             self.bell()
             return None
         return s
@@ -580,13 +596,25 @@ class CCSessionsApp(App):
                 self.bell()
                 return
             try:
-                dest = archive_project(p)
+                if p.is_archived:
+                    restore_project(p)
+                    msg = f"Project “{p.display_name}” restored from archive"
+                else:
+                    dest = archive_project(p)
+                    msg = f"Project “{p.display_name}” moved to {dest.parent}"
             except ManageError as e:
                 self._set_status(f"Archive failed: {e}")
                 self.bell()
                 return
-            self._set_status(f"Project “{p.display_name}” moved to {dest.parent}")
+            self._set_status(msg)
             self.action_refresh()
+            return
+        project = self._current_project()
+        if project is not None and project.is_archived:
+            self._set_status(
+                "Project is archived — restore the whole project (a on Projects pane)"
+            )
+            self.bell()
             return
         s = self._current_session()
         if s is None:
