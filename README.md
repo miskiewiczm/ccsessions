@@ -64,6 +64,7 @@ ccsessions
 | `a` | Archive ↔ restore session · archive ↔ restore project |
 | `d` | Delete session / project (with confirmation) |
 | `n` | Rename project (set a display alias) |
+| `/` | Filter the focused list (projects or sessions) |
 | `Ctrl+R` | Rescan `~/.claude` |
 | `q` | Quit |
 

@@ -16,6 +16,7 @@ from textual.app import App, ComposeResult
 from textual.color import Color as TextualColor
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
@@ -170,6 +171,18 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
+class FilterInput(Input):
+    """Filter bar input; Escape clears the filter and hides the bar."""
+
+    class Cancelled(Message):
+        pass
+
+    BINDINGS = [Binding("escape", "cancel", "Clear filter", show=False)]
+
+    def action_cancel(self) -> None:
+        self.post_message(self.Cancelled())
+
+
 class RenameScreen(ModalScreen[str | None]):
     """Prompt for a project alias. Empty input restores the default name."""
 
@@ -289,6 +302,14 @@ class CCSessionsApp(App):
         height: auto;
     }
 
+    #filter-input {
+        display: none;
+        height: 1;
+        border: none;
+        padding: 0 1;
+        background: $boost;
+    }
+
     #status {
         height: 1;
         background: $boost;
@@ -305,6 +326,7 @@ class CCSessionsApp(App):
         Binding("a", "restore", "Restore"),
         Binding("d", "delete", "Delete"),
         Binding("n", "rename", "Rename"),
+        Binding("/", "filter", "Filter"),
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
@@ -317,6 +339,12 @@ class CCSessionsApp(App):
         self.projects: list[Project] = []
         self._cache = TokenCache()
         self._aliases = ProjectAliases()
+        self._project_filter = ""
+        self._session_filter = ""
+        self._filter_target = "projects"
+        # snapshots of the currently displayed (filtered) rows
+        self._vprojects: list[Project] = []
+        self._vsessions: list[Session] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -329,6 +357,7 @@ class CCSessionsApp(App):
                         yield Static("", id="preview-content", markup=True)
             with VerticalScroll(id="conv-scroll"):
                 yield Static("", id="conversation-content", markup=False)
+        yield FilterInput(id="filter-input")
         yield Static("", id="status")
         yield Footer()
 
@@ -417,14 +446,14 @@ class CCSessionsApp(App):
     def _apply_projects(self, projects: list[Project], elapsed: float) -> None:
         ptable = self.query_one("#projects-table", DataTable)
         prev_path = (
-            self.projects[ptable.cursor_row].project_path
-            if 0 <= ptable.cursor_row < len(self.projects)
+            self._vprojects[ptable.cursor_row].project_path
+            if 0 <= ptable.cursor_row < len(self._vprojects)
             else None
         )
         self.projects = projects
         self._refresh_projects_table()
         if prev_path is not None:
-            for i, p in enumerate(projects):
+            for i, p in enumerate(self._vprojects):
                 if p.project_path == prev_path:
                     ptable.move_cursor(row=i)
                     break
@@ -479,11 +508,47 @@ class CCSessionsApp(App):
             "muted": self._muted_hex() or "bright_black",
         }
 
+    def _visible_projects(self) -> list[Project]:
+        q = self._project_filter.lower()
+        if not q:
+            return self.projects
+        return [
+            p
+            for p in self.projects
+            if q in p.display_name.lower()
+            or q in p.project_path.lower()
+            or q in p.alias.lower()
+        ]
+
+    def _visible_sessions_of(self, project: Project) -> list[Session]:
+        q = self._session_filter.lower()
+        if not q:
+            return project.sessions
+        return [
+            s
+            for s in project.sessions
+            if q in s.display_title.lower()
+            or q in s.first_prompt.lower()
+            or q in s.session_id.lower()
+        ]
+
+    def _update_filter_titles(self) -> None:
+        ptable = self.query_one("#projects-table", DataTable)
+        stable = self.query_one("#sessions-table", DataTable)
+        ptable.border_title = (
+            f"Projects · /{self._project_filter}" if self._project_filter else "Projects"
+        )
+        stable.border_title = (
+            f"Sessions · /{self._session_filter}" if self._session_filter else "Sessions"
+        )
+
     def _refresh_projects_table(self) -> None:
         table = self.query_one("#projects-table", DataTable)
         pal = self._palette()
+        self._update_filter_titles()
         table.clear()
-        for p in self.projects:
+        self._vprojects = self._visible_projects()
+        for p in self._vprojects:
             active = [s for s in p.sessions if not (s.is_archived or s.is_missing)]
             archived = [s for s in p.sessions if s.is_archived or s.is_missing]
             all_archived = not active
@@ -512,8 +577,8 @@ class CCSessionsApp(App):
             self._update_preview(None)
 
     def _show_sessions_for(self, project_idx: int) -> None:
-        if 0 <= project_idx < len(self.projects):
-            sessions = self.projects[project_idx].sessions
+        if 0 <= project_idx < len(self._vprojects):
+            sessions = self._visible_sessions_of(self._vprojects[project_idx])
             self._update_sessions_table(sessions)
             self._update_preview(sessions[0] if sessions else None)
         else:
@@ -524,6 +589,7 @@ class CCSessionsApp(App):
         table = self.query_one("#sessions-table", DataTable)
         pal = self._palette()
         table.clear()
+        self._vsessions = sessions
         for s in sessions:
             if s.is_missing:
                 marker = Text("✕", style=pal["muted"])
@@ -707,14 +773,8 @@ class CCSessionsApp(App):
         if event.data_table.id == "projects-table":
             self._show_sessions_for(event.cursor_row)
         elif event.data_table.id == "sessions-table":
-            ptable = self.query_one("#projects-table", DataTable)
-            sessions = (
-                self.projects[ptable.cursor_row].sessions
-                if 0 <= ptable.cursor_row < len(self.projects)
-                else []
-            )
-            if 0 <= event.cursor_row < len(sessions):
-                self._update_preview(sessions[event.cursor_row])
+            if 0 <= event.cursor_row < len(self._vsessions):
+                self._update_preview(self._vsessions[event.cursor_row])
         # the footer label of `a` (Archive/Restore) depends on the selection
         self.refresh_bindings()
 
@@ -734,17 +794,14 @@ class CCSessionsApp(App):
 
     def _current_project(self) -> Project | None:
         ptable = self.query_one("#projects-table", DataTable)
-        if 0 <= ptable.cursor_row < len(self.projects):
-            return self.projects[ptable.cursor_row]
+        if 0 <= ptable.cursor_row < len(self._vprojects):
+            return self._vprojects[ptable.cursor_row]
         return None
 
     def _current_session(self) -> Session | None:
-        project = self._current_project()
-        if project is None:
-            return None
         stable = self.query_one("#sessions-table", DataTable)
-        if 0 <= stable.cursor_row < len(project.sessions):
-            return project.sessions[stable.cursor_row]
+        if 0 <= stable.cursor_row < len(self._vsessions):
+            return self._vsessions[stable.cursor_row]
         return None
 
     def _selected_session(self) -> Session | None:
@@ -783,6 +840,48 @@ class CCSessionsApp(App):
     def _focus_on_projects(self) -> bool:
         focused = self.focused
         return focused is not None and focused.id == "projects-table"
+
+    def action_filter(self) -> None:
+        self._filter_target = "projects" if self._focus_on_projects() else "sessions"
+        inp = self.query_one("#filter-input", FilterInput)
+        inp.value = (
+            self._project_filter
+            if self._filter_target == "projects"
+            else self._session_filter
+        )
+        inp.placeholder = f"Filter {self._filter_target}…  (Enter = apply, Esc = clear)"
+        inp.display = True
+        inp.focus()
+
+    def _apply_filter_change(self, value: str) -> None:
+        ptable = self.query_one("#projects-table", DataTable)
+        if self._filter_target == "projects":
+            self._project_filter = value
+            self._refresh_projects_table()
+        else:
+            self._session_filter = value
+            self._update_filter_titles()
+            self._show_sessions_for(ptable.cursor_row)
+
+    def _focus_after_filter(self) -> None:
+        target = "#projects-table" if self._filter_target == "projects" else "#sessions-table"
+        self.query_one(target, DataTable).focus()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "filter-input":
+            self._apply_filter_change(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "filter-input":
+            return
+        event.input.display = False
+        self._focus_after_filter()
+
+    def on_filter_input_cancelled(self, event: FilterInput.Cancelled) -> None:
+        inp = self.query_one("#filter-input", FilterInput)
+        inp.value = ""  # triggers Input.Changed, which clears the filter
+        inp.display = False
+        self._focus_after_filter()
 
     def action_rename(self) -> None:
         p = self._current_project()
