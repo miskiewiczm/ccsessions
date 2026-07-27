@@ -29,9 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-# TODO: update once the GitHub repository exists
-Homepage = "https://github.com/CHANGE-ME/ccsessions"
-Issues = "https://github.com/CHANGE-ME/ccsessions/issues"
+Homepage = "https://github.com/miskiewiczm/ccsessions"
+Issues = "https://github.com/miskiewiczm/ccsessions/issues"
 
 [project.scripts]
 ccsessions = "ccsessions.__main__:main"

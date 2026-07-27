@@ -45,7 +45,7 @@ pipx install ccsessions        # or: uv tool install ccsessions
 Or from a clone:
 
 ```bash
-git clone https://github.com/CHANGE-ME/ccsessions
+git clone https://github.com/miskiewiczm/ccsessions
 pip install -e ccsessions
 ```
 
