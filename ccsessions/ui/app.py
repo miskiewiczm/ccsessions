@@ -13,6 +13,7 @@ from rich.text import Text
 from rich.theme import Theme as RichTheme
 from textual import events, work
 from textual.app import App, ComposeResult
+from textual.color import Color as TextualColor
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
@@ -449,6 +450,21 @@ class CCSessionsApp(App):
             + "  ·  r=resume  c=copy  a=archive  d=delete  q=quit"
         )
 
+    def _muted_hex(self) -> str | None:
+        """Theme-matched muted gray (foreground blended toward background).
+
+        None for ANSI themes, where blending is impossible — callers fall
+        back to the terminal's bright_black.
+        """
+        th = self.current_theme
+        fg, bg = th.foreground, th.background
+        if not fg or not bg or fg.startswith("ansi") or bg.startswith("ansi"):
+            return None
+        try:
+            return TextualColor.parse(fg).blend(TextualColor.parse(bg), 0.55).hex
+        except Exception:
+            return None
+
     def _palette(self) -> dict[str, str]:
         """Rich-safe colors from the active theme for table/conversation content."""
         th = self.current_theme
@@ -459,6 +475,8 @@ class CCSessionsApp(App):
             "primary": rich_color(th.primary, "cyan"),
             "secondary": rich_color(th.secondary, "magenta"),
             "accent": rich_color(th.accent, "blue"),
+            "text": rich_color(th.foreground, "white"),
+            "muted": self._muted_hex() or "bright_black",
         }
 
     def _refresh_projects_table(self) -> None:
@@ -475,7 +493,7 @@ class CCSessionsApp(App):
                 live = Text("●", style=pal["success"])
             else:
                 live = Text(" ")
-            name_style = "bright_black italic" if all_archived else f"bold {pal['primary']}"
+            name_style = f"{pal['muted']} italic" if all_archived else f"bold {pal['primary']}"
             name = Text(p.display_name, style=name_style)
             sess_label = (
                 f"{len(active)}"
@@ -483,7 +501,7 @@ class CCSessionsApp(App):
                 else f"{len(active)}+{len(archived)}"
             )
             count = Text(sess_label, style=pal["warning"], justify="right")
-            tok_style = "bright_black" if all_archived else pal["secondary"]
+            tok_style = pal["muted"] if all_archived else pal["secondary"]
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
             table.add_row(live, name, count, tokens)
         if table.row_count:
@@ -508,7 +526,7 @@ class CCSessionsApp(App):
         table.clear()
         for s in sessions:
             if s.is_missing:
-                marker = Text("✕", style="bright_black")
+                marker = Text("✕", style=pal["muted"])
             elif s.is_archived:
                 marker = Text("▪", style=pal["error"])
             elif s.is_live:
@@ -520,20 +538,20 @@ class CCSessionsApp(App):
             if len(desc_raw) > 80:
                 desc_raw = desc_raw[:77] + "..."
             if inactive:
-                desc_style = "bright_black"
+                desc_style = pal["muted"]
             elif s.is_sidechain:
-                desc_style = "bright_black italic"
+                desc_style = f"{pal['muted']} italic"
             elif s.is_live:
-                desc_style = "bright_white bold"
+                desc_style = f"bold {pal['text']}"
             else:
-                desc_style = "white"
+                desc_style = pal["text"]
             desc = Text(desc_raw, style=desc_style)
-            count_style = "bright_black" if inactive else pal["warning"]
+            count_style = pal["muted"] if inactive else pal["warning"]
             count = Text(str(s.message_count), style=count_style, justify="right")
-            tok_style = "bright_black" if inactive else pal["secondary"]
+            tok_style = pal["muted"] if inactive else pal["secondary"]
             tok_text = "-" if s.is_missing else fmt_tokens(s.tokens)
             tokens = Text(tok_text, style=tok_style, justify="right")
-            modified = Text(fmt_date(s.modified), style="bright_black")
+            modified = Text(fmt_date(s.modified), style=pal["muted"])
             table.add_row(marker, desc, count, tokens, modified)
 
     def _update_preview(self, session: Session | None) -> None:
@@ -552,9 +570,11 @@ class CCSessionsApp(App):
         c_primary = th.primary or "ansi_cyan"
         c_secondary = th.secondary or "ansi_magenta"
         c_accent = th.accent or "ansi_blue"
+        c_text = th.foreground or "ansi_default"
+        c_muted = self._muted_hex() or "ansi_bright_black"
 
         if session.is_missing:
-            state = "[bright_black]✕ JSONL file not on this machine — cannot resume[/bright_black]"
+            state = f"[{c_muted}]✕ JSONL file not on this machine — cannot resume[/]"
         elif session.is_archived:
             state = f"[{c_error}]▪ archived (a = restore)[/]"
         elif session.is_live:
@@ -592,7 +612,7 @@ class CCSessionsApp(App):
                 else ""
             )
             resume_line = (
-                f"\n[bold]Resume command[/bold] [bright_black](c = copy to clipboard)[/bright_black]"
+                f"\n[bold]Resume command[/bold] [{c_muted}](c = copy to clipboard)[/]"
                 f"{warn}\n"
                 f"[{c_primary}]{escape(cmd)}[/]\n"
             )
@@ -601,23 +621,23 @@ class CCSessionsApp(App):
         text = (
             f"{title_line}"
             f"{state}{sidechain}{branch}\n\n"
-            f"[bright_black]ID:[/bright_black]  [white]{session.session_id}[/white]\n"
-            f"[bright_black]CWD:[/bright_black] [white]{escape(short_path(session.project_path))}[/white]"
+            f"[{c_muted}]ID:[/]  [{c_text}]{session.session_id}[/]\n"
+            f"[{c_muted}]CWD:[/] [{c_text}]{escape(short_path(session.project_path))}[/]"
             f"{'' if cwd_exists else f' [{c_warning}](does not exist)[/]'}\n"
-            f"[bright_black]Created:[/bright_black]  [white]{fmt_date(session.created)}[/white]\n"
-            f"[bright_black]Modified:[/bright_black] [white]{fmt_date(session.modified)}[/white]\n"
-            f"[bright_black]Messages:[/bright_black] [{c_warning}]{session.message_count}[/]\n"
+            f"[{c_muted}]Created:[/]  [{c_text}]{fmt_date(session.created)}[/]\n"
+            f"[{c_muted}]Modified:[/] [{c_text}]{fmt_date(session.modified)}[/]\n"
+            f"[{c_muted}]Messages:[/] [{c_warning}]{session.message_count}[/]\n"
             f"\n"
             f"[bold]Tokens[/bold]\n"
-            f"  [{c_success}]input:[/]       [white]{t.input:>12,}[/]\n"
-            f"  [{c_secondary}]output:[/]      [white]{t.output:>12,}[/]\n"
-            f"  [{c_primary}]cache read:[/]  [white]{t.cache_read:>12,}[/]\n"
-            f"  [{c_accent}]cache write:[/] [white]{t.cache_write:>12,}[/]\n"
+            f"  [{c_success}]input:[/]       [{c_text}]{t.input:>12,}[/]\n"
+            f"  [{c_secondary}]output:[/]      [{c_text}]{t.output:>12,}[/]\n"
+            f"  [{c_primary}]cache read:[/]  [{c_text}]{t.cache_read:>12,}[/]\n"
+            f"  [{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
             f"  [bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
             f"{resume_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
-            f"[white]{escape(first_prompt)}[/white]"
+            f"[{c_text}]{escape(first_prompt)}[/]"
         )
         widget.update(text)
 
@@ -631,7 +651,7 @@ class CCSessionsApp(App):
             widget.update(
                 Text(
                     "✕ JSONL file not on this machine — conversation preview unavailable",
-                    style="bright_black",
+                    style=self._palette()["muted"],
                 )
             )
             return
@@ -643,15 +663,15 @@ class CCSessionsApp(App):
         parts: list[Text | Padding] = []
         for role, text in entries:
             if role == "tool":
-                parts.append(Text(f"  ⚙ {text}", style="bright_black"))
+                parts.append(Text(f"  ⚙ {text}", style=pal["muted"]))
                 continue
             if role == "command":
-                parts.append(Text(f"  ⌘ {text}", style="bold bright_black"))
+                parts.append(Text(f"  ⌘ {text}", style=f"bold {pal['muted']}"))
                 continue
             if role == "command-output":
                 if len(text) > 400:
                     text = text[:397] + "..."
-                parts.append(Padding(Text(text, style="bright_black"), (0, 0, 1, 4)))
+                parts.append(Padding(Text(text, style=pal["muted"]), (0, 0, 1, 4)))
                 continue
             if len(text) > 1500:
                 text = text[:1497] + "..."
@@ -659,7 +679,7 @@ class CCSessionsApp(App):
                 # user prompts as plain text — markdown silently drops raw
                 # tags/pseudo-HTML, and fidelity matters more here
                 parts.append(Text("▌ You", style=f"bold {pal['primary']}"))
-                parts.append(Padding(Text(text, style="white"), (0, 0, 1, 2)))
+                parts.append(Padding(Text(text, style=pal["text"]), (0, 0, 1, 2)))
             else:
                 code_theme = code_theme_for(
                     self.theme or "", self.current_theme.dark, CODE_THEME_OVERRIDE
