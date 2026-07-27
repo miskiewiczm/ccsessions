@@ -10,6 +10,7 @@ from rich.markdown import Markdown
 from rich.markup import escape
 from rich.padding import Padding
 from rich.text import Text
+from rich.theme import Theme as RichTheme
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -316,6 +317,7 @@ class CCSessionsApp(App):
             self.theme = APP_THEME
         except Exception:
             self.theme = "ansi-dark"  # unknown theme name — fall back
+        self._apply_markdown_styles()
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_columns("●", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
@@ -330,7 +332,29 @@ class CCSessionsApp(App):
         # re-render the details pane when the theme changes (Ctrl+P)
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
+    def _apply_markdown_styles(self) -> None:
+        """Pin Rich markdown styles (bullets, inline code) to the theme palette.
+
+        Rich's defaults use ANSI-named colors resolved through app.console,
+        which Textual maps differently per theme — pinning explicit palette
+        colors keeps them deterministic across theme switches.
+        """
+        pal = self._palette()
+        if getattr(self, "_md_styles_pushed", False):
+            self.console.pop_theme()
+        self.console.push_theme(
+            RichTheme(
+                {
+                    "markdown.code": f"bold {pal['secondary']}",
+                    "markdown.item.bullet": f"bold {pal['warning']}",
+                    "markdown.item.number": f"bold {pal['warning']}",
+                }
+            )
+        )
+        self._md_styles_pushed = True
+
     def _on_theme_changed(self) -> None:
+        self._apply_markdown_styles()
         # DataTable caches rendered rows, so a theme switch leaves stale
         # colors behind — rebuild both tables, keeping the cursor in place
         ptable = self.query_one("#projects-table", DataTable)
