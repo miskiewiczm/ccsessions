@@ -33,15 +33,41 @@ from ..core.manage import (
 from ..core.models import Project, Session, TokenStats
 from ..core.parser import read_conversation_tail
 from ..core.resume import ResumeRequest, build_resume_command
+from ..core.settings import load_settings, save_settings
 
 
-# pygments style for fenced code blocks in the conversation pane;
-# any name from `pygments.styles.get_all_styles()` works
-CODE_THEME = os.environ.get("CCSESSIONS_CODE_THEME", "nord")
+# explicit pygments style for fenced code blocks (empty = follow the app
+# theme); any name from `pygments.styles.get_all_styles()` works
+CODE_THEME_OVERRIDE = os.environ.get("CCSESSIONS_CODE_THEME", "")
 
-# Textual theme for the whole app; any name from the theme registry
-# (see Ctrl+P → "Change theme"), e.g. nord, gruvbox, tokyo-night
-APP_THEME = os.environ.get("CCSESSIONS_THEME", "ansi-dark")
+# explicit Textual theme (empty = last theme saved from Ctrl+P, or ansi-dark)
+APP_THEME_OVERRIDE = os.environ.get("CCSESSIONS_THEME", "")
+
+# app theme -> closest built-in pygments style for fenced code blocks
+PYGMENTS_FOR_THEME = {
+    "nord": "nord",
+    "gruvbox": "gruvbox-dark",
+    "dracula": "dracula",
+    "monokai": "monokai",
+    "tokyo-night": "one-dark",
+    "catppuccin-mocha": "one-dark",
+    "catppuccin-latte": "default",
+    "solarized-light": "solarized-light",
+    "textual-dark": "one-dark",
+    "textual-light": "default",
+    "flexoki": "one-dark",
+}
+
+
+def code_theme_for(theme_name: str, dark: bool, override: str = "") -> str:
+    """Pick a pygments style: explicit override wins, then a per-theme match,
+    then a dark/light fallback."""
+    if override:
+        return override
+    mapped = PYGMENTS_FOR_THEME.get(theme_name)
+    if mapped:
+        return mapped
+    return "nord" if dark else "default"
 
 
 def fmt_tokens(t: TokenStats) -> str:
@@ -313,8 +339,10 @@ class CCSessionsApp(App):
     def on_mount(self) -> None:
         self.title = "Claude Code Sessions"
         self.sub_title = ""
+        # precedence: env var > theme saved from a previous run > default
+        requested = APP_THEME_OVERRIDE or load_settings().get("theme") or "ansi-dark"
         try:
-            self.theme = APP_THEME
+            self.theme = requested
         except Exception:
             self.theme = "ansi-dark"  # unknown theme name — fall back
         self._apply_markdown_styles()
@@ -354,6 +382,10 @@ class CCSessionsApp(App):
         self._md_styles_pushed = True
 
     def _on_theme_changed(self) -> None:
+        # remember the choice (Ctrl+P) for the next run
+        settings = load_settings()
+        settings["theme"] = self.theme
+        save_settings(settings)
         self._apply_markdown_styles()
         # DataTable caches rendered rows, so a theme switch leaves stale
         # colors behind — rebuild both tables, keeping the cursor in place
@@ -629,8 +661,11 @@ class CCSessionsApp(App):
                 parts.append(Text("▌ You", style=f"bold {pal['primary']}"))
                 parts.append(Padding(Text(text, style="white"), (0, 0, 1, 2)))
             else:
+                code_theme = code_theme_for(
+                    self.theme or "", self.current_theme.dark, CODE_THEME_OVERRIDE
+                )
                 parts.append(Text("▌ Claude", style=f"bold {pal['success']}"))
-                parts.append(Padding(Markdown(text, code_theme=CODE_THEME), (0, 0, 1, 2)))
+                parts.append(Padding(Markdown(text, code_theme=code_theme), (0, 0, 1, 2)))
         widget.update(Group(*parts))
         # show the end of the conversation — that's where the freshest context is
         self.call_after_refresh(scroll.scroll_end, animate=False)
