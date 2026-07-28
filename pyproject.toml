@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "Marek Miśkiewicz", email = "marek.miskiewicz@gmail.com" },
+    { name = "Marek Miśkiewicz" },
 ]
 keywords = ["claude", "claude-code", "sessions", "tui", "textual", "terminal"]
 classifiers = [
