@@ -1,5 +1,5 @@
 [project]
-name = "ccsessions"
+name = "ccsessions-tui"
 version = "0.1.0"
 description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
 readme = "README.md"

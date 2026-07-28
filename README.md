@@ -39,8 +39,10 @@ A fast terminal UI for browsing, previewing, resuming and managing
 ## Installation
 
 ```bash
-pipx install ccsessions        # or: uv tool install ccsessions
+pipx install ccsessions-tui        # or: uv tool install ccsessions-tui
 ```
+
+Both install the `ccsessions` command.
 
 Or from a clone:
 
