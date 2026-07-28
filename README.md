@@ -1,7 +1,7 @@
 # ccsessions
 
 A fast terminal UI for browsing, previewing, resuming and managing
-[Claude Code](https://claude.com/claude-code) sessions.
+[Claude Code](https://claude.com/claude-code) terminal sessions.
 
 ![ccsessions in a fullscreen terminal — wide layout with a full-height conversation pane](assets/ccsessions_fullscreen.png)
 
