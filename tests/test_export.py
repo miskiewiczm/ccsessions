@@ -12,6 +12,7 @@ from ccsessions.core.export import (
     ExportError,
     default_filename,
     export_session,
+    normalize_markdown,
     resolve_destination,
 )
 from ccsessions.core.models import Session, TokenStats
@@ -107,6 +108,64 @@ def test_raw_export_is_byte_identical(tmp_path):
     s = _session(tmp_path)
     dest = export_session(s, str(tmp_path / "copy.jsonl"), RAW)
     assert dest.read_bytes() == s.jsonl_path.read_bytes()
+
+
+def test_headings_are_demoted_below_role_headings():
+    out = normalize_markdown("## Section\ntext\n### Sub")
+    assert "### Section" in out
+    assert "#### Sub" in out
+
+
+def test_headings_inside_code_fences_are_untouched():
+    out = normalize_markdown("```\n## not a heading\n```")
+    assert "## not a heading" in out
+
+
+def test_bare_fences_get_txt_info_string():
+    assert "```txt" in normalize_markdown("```\nplain output\n```")
+    assert "```python" in normalize_markdown("```python\nx = 1\n```")
+
+
+def test_blank_line_inserted_before_glued_list():
+    out = normalize_markdown("**Lead in.** Two changes:\n- first\n- second")
+    assert "Two changes:\n\n- first\n- second" in out
+
+
+def test_insight_block_gets_inner_blank_lines():
+    text = "`★ Insight ─────`\n- point\n`─────────────`"
+    out = normalize_markdown(text)
+    assert "`★ Insight ─────`\n\n- point\n\n`─────────────`" == out
+
+
+def test_consecutive_tool_calls_form_a_tight_list(tmp_path):
+    jsonl = tmp_path / "tools.jsonl"
+    jsonl.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b.py"}},
+                    ],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    s = _session(tmp_path)
+    s.jsonl_path = jsonl
+    dest = export_session(s, str(tmp_path / "tools.md"), MARKDOWN)
+    assert "- ⚙ `Edit: /a.py`\n- ⚙ `Edit: /b.py`\n" in dest.read_text(encoding="utf-8")
+
+
+def test_command_output_is_fenced_as_txt(tmp_path):
+    s = _session(tmp_path)
+    dest = export_session(s, str(tmp_path / "out.md"), MARKDOWN)
+    text = dest.read_text(encoding="utf-8")
+    assert "- ⌘ `/exit`" in text
 
 
 def test_export_missing_transcript_raises(tmp_path):
