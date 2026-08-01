@@ -372,11 +372,14 @@ class CCSessionsApp(App):
         color: $text;
     }
 
-    /* column labels are chrome, not data — tint them like the pane titles */
+    /* column labels are chrome, not data — cyan/nord8 reads lighter than the
+       pane-title blue, so headers stay distinct from the focus indicators.
+       The underline spans the cell padding too, so it reads as a rule under
+       the whole header row instead of a separate ---- line. */
     DataTable > .datatable--header {
         background: $boost;
-        color: $primary;
-        text-style: bold;
+        color: $secondary;
+        text-style: bold underline;
     }
 
     #preview-content, #conversation-content {
