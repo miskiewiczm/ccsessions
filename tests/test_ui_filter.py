@@ -78,3 +78,43 @@ async def _exercise_filters() -> None:
 
 def test_filter_projects_and_sessions():
     asyncio.run(_exercise_filters())
+
+
+async def _exercise_export(tmp_path: Path) -> None:
+    import json
+
+    from textual.widgets import Input
+
+    projects = _fake_projects()
+    # give the first session a real transcript so the export has content
+    transcript = tmp_path / "s1.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hello"}}) + "\n",
+        encoding="utf-8",
+    )
+    projects[0].sessions[0].jsonl_path = transcript
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pilot.press("tab")  # focus the sessions pane
+            await pilot.press("e")
+            await pilot.pause()
+            app.screen.query_one("#export-path", Input).value = str(tmp_path)
+            await pilot.press("enter")
+            await pilot.pause()
+            exported = [p for p in tmp_path.iterdir() if p.suffix == ".md"]
+            assert len(exported) == 1
+            assert "## You\n\nhello" in exported[0].read_text(encoding="utf-8")
+
+            # escape cancels without writing anything
+            await pilot.press("e")
+            await pilot.press("escape")
+            await pilot.pause()
+            assert len([p for p in tmp_path.iterdir() if p.suffix == ".md"]) == 1
+
+
+def test_export_from_ui(tmp_path):
+    asyncio.run(_exercise_export(tmp_path))

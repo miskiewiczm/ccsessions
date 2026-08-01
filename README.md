@@ -25,6 +25,9 @@ A fast terminal UI for browsing, previewing, resuming and managing
   layout with a full-width conversation pane:
 
   <img src="assets/ccsessions_halfscreen.png" alt="ccsessions in a half-screen terminal — stacked layout with a full-width conversation pane" width="70%">
+- **Export** — write a whole session to Markdown (YAML front matter with
+  session metadata, then the conversation — ready for Quarto/Pandoc) or copy
+  the raw JSONL transcript verbatim; existing files are never overwritten
 - **Fast** — token stats are cached per transcript (invalidated by
   mtime + size), scanning runs off the UI thread, and conversation previews
   read only the tail of multi-megabyte files
@@ -66,6 +69,7 @@ ccsessions
 | `a` | Archive ↔ restore session · archive ↔ restore project |
 | `d` | Delete session / project (with confirmation) |
 | `n` | Rename project (set a display alias) |
+| `e` | Export the session (Markdown or raw JSONL) |
 | `/` | Filter the focused list (projects or sessions) |
 | `Ctrl+R` | Rescan `~/.claude` |
 | `q` | Quit |

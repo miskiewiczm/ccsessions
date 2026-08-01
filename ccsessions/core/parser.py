@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -117,6 +118,57 @@ def _classify_user_text(text: str) -> tuple[str, str] | None:
     return ("user", text)
 
 
+def _entries_from_line(line: str) -> list[tuple[str, str]]:
+    """Parse one JSONL record into zero or more (role, text) entries."""
+    line = line.strip()
+    if not line:
+        return []
+    try:
+        obj = json.loads(line)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(obj, dict) or obj.get("isMeta"):
+        return []
+    typ = obj.get("type")
+    msg = obj.get("message")
+    if typ not in ("user", "assistant") or not isinstance(msg, dict):
+        return []
+    content = msg.get("content")
+
+    if typ == "user":
+        if isinstance(content, str):
+            text = content.strip()
+        elif isinstance(content, list):
+            text = "\n".join(
+                b["text"].strip()
+                for b in content
+                if isinstance(b, dict)
+                and b.get("type") == "text"
+                and isinstance(b.get("text"), str)
+                and b["text"].strip()
+            )
+        else:
+            return []
+        if not text:
+            return []
+        entry = _classify_user_text(text)
+        return [entry] if entry is not None else []
+
+    if not isinstance(content, list):
+        return []
+    entries: list[tuple[str, str]] = []
+    for b in content:
+        if not isinstance(b, dict):
+            continue
+        btype = b.get("type")
+        if btype == "text" and isinstance(b.get("text"), str) and b["text"].strip():
+            entries.append(("assistant", b["text"].strip()))
+        elif btype == "tool_use":
+            name = str(b.get("name") or "?")
+            entries.append(("tool", _summarize_tool_use(name, b.get("input"))))
+    return entries
+
+
 def read_conversation_tail(
     jsonl_path: Path,
     max_entries: int = 40,
@@ -144,48 +196,19 @@ def read_conversation_tail(
 
     entries: list[tuple[str, str]] = []
     for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(obj, dict) or obj.get("isMeta"):
-            continue
-        typ = obj.get("type")
-        msg = obj.get("message")
-        if typ not in ("user", "assistant") or not isinstance(msg, dict):
-            continue
-        content = msg.get("content")
-        if typ == "user":
-            if isinstance(content, str):
-                text = content.strip()
-            elif isinstance(content, list):
-                text = "\n".join(
-                    b["text"].strip()
-                    for b in content
-                    if isinstance(b, dict)
-                    and b.get("type") == "text"
-                    and isinstance(b.get("text"), str)
-                    and b["text"].strip()
-                )
-            else:
-                continue
-            if text:
-                entry = _classify_user_text(text)
-                if entry is not None:
-                    entries.append(entry)
-        else:
-            if not isinstance(content, list):
-                continue
-            for b in content:
-                if not isinstance(b, dict):
-                    continue
-                btype = b.get("type")
-                if btype == "text" and isinstance(b.get("text"), str) and b["text"].strip():
-                    entries.append(("assistant", b["text"].strip()))
-                elif btype == "tool_use":
-                    name = str(b.get("name") or "?")
-                    entries.append(("tool", _summarize_tool_use(name, b.get("input"))))
+        entries.extend(_entries_from_line(line))
     return entries[-max_entries:]
+
+
+def iter_conversation(jsonl_path: Path) -> Iterator[tuple[str, str]]:
+    """Stream the whole conversation as (role, text) pairs.
+
+    Reads line by line, so even multi-hundred-megabyte transcripts
+    never land in memory at once.
+    """
+    try:
+        with open(jsonl_path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                yield from _entries_from_line(line)
+    except OSError:
+        return

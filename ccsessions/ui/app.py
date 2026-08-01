@@ -23,6 +23,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
 from ..core.discovery import discover_projects
+from ..core.export import MARKDOWN, RAW, ExportError, export_session
 from ..core.manage import (
     ManageError,
     archive_project,
@@ -231,6 +232,76 @@ class RenameScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class ExportScreen(ModalScreen[tuple[str, str] | None]):
+    """Ask for a destination path and a format; returns (path, format)."""
+
+    DEFAULT_CSS = """
+    ExportScreen {
+        align: center middle;
+    }
+
+    #export-dialog {
+        width: 76;
+        height: auto;
+        padding: 1 2;
+        border: round $accent;
+        background: $surface;
+    }
+
+    #export-hint {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
+
+    #export-buttons {
+        height: auto;
+        margin-top: 1;
+        align-horizontal: center;
+    }
+
+    #export-buttons Button {
+        margin: 0 2;
+    }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, title: str) -> None:
+        super().__init__()
+        self._title = title
+
+    def compose(self) -> ComposeResult:
+        with Container(id="export-dialog"):
+            yield Static(f"Export “{self._title}”", id="export-title")
+            yield Static(
+                "Enter = export as Markdown · Tab → buttons to pick a format · Esc = cancel\n"
+                "A directory (or “.”) gets an auto-generated filename",
+                id="export-hint",
+            )
+            yield Input(value=".", placeholder="destination path", id="export-path")
+            with Horizontal(id="export-buttons"):
+                yield Button("Markdown", variant="primary", id="fmt-md")
+                yield Button("Raw JSONL", id="fmt-raw")
+
+    def on_mount(self) -> None:
+        self.query_one("#export-path", Input).focus()
+
+    @property
+    def _path(self) -> str:
+        return self.query_one("#export-path", Input).value
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.dismiss((self._path, MARKDOWN))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.dismiss((self._path, RAW if event.button.id == "fmt-raw" else MARKDOWN))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class CCSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
@@ -326,6 +397,7 @@ class CCSessionsApp(App):
         Binding("a", "restore", "Restore"),
         Binding("d", "delete", "Delete"),
         Binding("n", "rename", "Rename"),
+        Binding("e", "export", "Export"),
         Binding("/", "filter", "Filter"),
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Next pane", show=False),
@@ -882,6 +954,30 @@ class CCSessionsApp(App):
         inp.value = ""  # triggers Input.Changed, which clears the filter
         inp.display = False
         self._focus_after_filter()
+
+    def action_export(self) -> None:
+        s = self._current_session()
+        if s is None:
+            return
+        if s.is_missing:
+            self._set_status("Cannot export — transcript not on this machine")
+            self.bell()
+            return
+
+        def on_export(result: tuple[str, str] | None) -> None:
+            if result is None:
+                return
+            path_str, fmt = result
+            try:
+                dest = export_session(s, path_str, fmt)
+            except ExportError as e:
+                self._set_status(f"Export failed: {e}")
+                self.bell()
+                return
+            size = dest.stat().st_size / 1024
+            self._set_status(f"Exported ({fmt}, {size:.0f} kB): {dest}")
+
+        self.push_screen(ExportScreen(s.display_title[:50]), on_export)
 
     def action_rename(self) -> None:
         p = self._current_project()
