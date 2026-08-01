@@ -372,8 +372,10 @@ class CCSessionsApp(App):
         color: $text;
     }
 
+    /* column labels are chrome, not data — tint them like the pane titles */
     DataTable > .datatable--header {
         background: $boost;
+        color: $primary;
         text-style: bold;
     }
 
@@ -459,10 +461,10 @@ class CCSessionsApp(App):
             self.theme = "ansi-dark"  # unknown theme name — fall back
         self._apply_markdown_styles()
         ptable = self.query_one("#projects-table", DataTable)
-        ptable.add_columns("●", "Project", "Sessions", "Tokens")
+        ptable.add_columns(" ", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
-        stable.add_columns("●", "Title", "Msgs", "Tokens", "Modified")
+        stable.add_columns(" ", "Title", "Msgs", "Tokens", "Modified")
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"

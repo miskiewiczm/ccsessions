@@ -1,6 +1,6 @@
 [project]
 name = "ccsessions-tui"
-version = "0.2.0"
+version = "0.2.1"
 description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
 readme = "README.md"
 requires-python = ">=3.10"
