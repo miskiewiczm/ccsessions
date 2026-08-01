@@ -46,6 +46,15 @@ CODE_THEME_OVERRIDE = os.environ.get("CCSESSIONS_CODE_THEME", "")
 # explicit Textual theme (empty = last theme saved from Ctrl+P, or ansi-dark)
 APP_THEME_OVERRIDE = os.environ.get("CCSESSIONS_THEME", "")
 
+
+def _auto_refresh_seconds() -> float:
+    """Rescan interval in seconds; 0 disables auto-refresh."""
+    try:
+        value = float(os.environ.get("CCSESSIONS_REFRESH_SECONDS", "10"))
+    except ValueError:
+        return 10.0
+    return max(0.0, value)
+
 # app theme -> closest built-in pygments style for fenced code blocks
 PYGMENTS_FOR_THEME = {
     "nord": "nord",
@@ -414,6 +423,7 @@ class CCSessionsApp(App):
         self._project_filter = ""
         self._session_filter = ""
         self._filter_target = "projects"
+        self._preview_key: tuple[str, object] | None = None
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
@@ -459,6 +469,9 @@ class CCSessionsApp(App):
         self.action_refresh()
         ptable.focus()
         self.watch(self.screen, "focused", self._highlight_focused_pane)
+        interval = _auto_refresh_seconds()
+        if interval:
+            self.set_interval(interval, self._tick_refresh)
         # re-render the details pane when the theme changes (Ctrl+P)
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
@@ -499,10 +512,18 @@ class CCSessionsApp(App):
             ptable.move_cursor(row=prow)
         if 0 <= srow < stable.row_count:
             stable.move_cursor(row=srow)
-        self._update_preview(self._current_session())
+        self._update_preview(self._current_session(), force=True)
 
     def action_refresh(self) -> None:
         self._set_status("Scanning...")
+        self._scan()
+
+    def _tick_refresh(self) -> None:
+        """Periodic rescan — silent, and paused while a dialog or filter is in use."""
+        if len(self.screen_stack) > 1:  # a modal is open
+            return
+        if isinstance(self.focused, Input):  # typing in the filter bar
+            return
         self._scan()
 
     @work(thread=True, exclusive=True, group="scan")
@@ -516,19 +537,8 @@ class CCSessionsApp(App):
         self.call_from_thread(self._apply_projects, projects, elapsed)
 
     def _apply_projects(self, projects: list[Project], elapsed: float) -> None:
-        ptable = self.query_one("#projects-table", DataTable)
-        prev_path = (
-            self._vprojects[ptable.cursor_row].project_path
-            if 0 <= ptable.cursor_row < len(self._vprojects)
-            else None
-        )
         self.projects = projects
         self._refresh_projects_table()
-        if prev_path is not None:
-            for i, p in enumerate(self._vprojects):
-                if p.project_path == prev_path:
-                    ptable.move_cursor(row=i)
-                    break
         all_sessions = [s for p in self.projects for s in p.sessions]
         live_count = sum(1 for s in all_sessions if s.is_live)
         active = sum(1 for s in all_sessions if not (s.is_archived or s.is_missing))
@@ -618,6 +628,11 @@ class CCSessionsApp(App):
         table = self.query_one("#projects-table", DataTable)
         pal = self._palette()
         self._update_filter_titles()
+        prev_path = (
+            self._vprojects[table.cursor_row].project_path
+            if 0 <= table.cursor_row < len(self._vprojects)
+            else None
+        )
         table.clear()
         self._vprojects = self._visible_projects()
         for p in self._vprojects:
@@ -642,8 +657,14 @@ class CCSessionsApp(App):
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
             table.add_row(live, name, count, tokens)
         if table.row_count:
-            table.move_cursor(row=0)
-            self._show_sessions_for(0)
+            row = 0
+            if prev_path is not None:
+                for i, p in enumerate(self._vprojects):
+                    if p.project_path == prev_path:
+                        row = i
+                        break
+            table.move_cursor(row=row)
+            self._show_sessions_for(row)
         else:
             self._update_sessions_table([])
             self._update_preview(None)
@@ -652,7 +673,10 @@ class CCSessionsApp(App):
         if 0 <= project_idx < len(self._vprojects):
             sessions = self._visible_sessions_of(self._vprojects[project_idx])
             self._update_sessions_table(sessions)
-            self._update_preview(sessions[0] if sessions else None)
+            # the table may have restored a previous selection — follow it
+            stable = self.query_one("#sessions-table", DataTable)
+            row = stable.cursor_row if 0 <= stable.cursor_row < len(sessions) else 0
+            self._update_preview(sessions[row] if sessions else None)
         else:
             self._update_sessions_table([])
             self._update_preview(None)
@@ -660,6 +684,12 @@ class CCSessionsApp(App):
     def _update_sessions_table(self, sessions: list[Session]) -> None:
         table = self.query_one("#sessions-table", DataTable)
         pal = self._palette()
+        # remember what was selected so a rebuild (refresh, filter) keeps it
+        prev_sid = (
+            self._vsessions[table.cursor_row].session_id
+            if 0 <= table.cursor_row < len(self._vsessions)
+            else None
+        )
         table.clear()
         self._vsessions = sessions
         for s in sessions:
@@ -691,8 +721,20 @@ class CCSessionsApp(App):
             tokens = Text(tok_text, style=tok_style, justify="right")
             modified = Text(fmt_date(s.modified), style=pal["muted"])
             table.add_row(marker, desc, count, tokens, modified)
+        if prev_sid is not None:
+            for row, s in enumerate(sessions):
+                if s.session_id == prev_sid:
+                    table.move_cursor(row=row)
+                    break
 
-    def _update_preview(self, session: Session | None) -> None:
+    def _update_preview(self, session: Session | None, force: bool = False) -> None:
+        # skip re-rendering (and re-reading the transcript) when nothing changed,
+        # so auto-refresh never scrolls the conversation pane under your hands
+        key = (session.session_id, session.modified) if session else None
+        if not force and key == self._preview_key:
+            return
+        self._preview_key = key
+
         self._update_conversation(session)
         widget = self.query_one("#preview-content", Static)
         if session is None:
@@ -842,11 +884,14 @@ class CCSessionsApp(App):
             pass
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        if event.data_table.id == "projects-table":
-            self._show_sessions_for(event.cursor_row)
-        elif event.data_table.id == "sessions-table":
-            if 0 <= event.cursor_row < len(self._vsessions):
-                self._update_preview(self._vsessions[event.cursor_row])
+        # read the table's live cursor instead of the event payload: clear() and
+        # move_cursor() queue events that arrive with an already-stale row
+        table = event.data_table
+        if table.id == "projects-table":
+            self._show_sessions_for(table.cursor_row)
+        elif table.id == "sessions-table":
+            if 0 <= table.cursor_row < len(self._vsessions):
+                self._update_preview(self._vsessions[table.cursor_row])
         # the footer label of `a` (Archive/Restore) depends on the selection
         self.refresh_bindings()
 

@@ -71,7 +71,7 @@ ccsessions
 | `n` | Rename project (set a display alias) |
 | `e` | Export the session (Markdown or raw JSONL) |
 | `/` | Filter the focused list (projects or sessions) |
-| `Ctrl+R` | Rescan `~/.claude` |
+| `Ctrl+R` | Rescan `~/.claude` now (a rescan also runs automatically) |
 | `q` | Quit |
 
 `a` and `d` act on the **session** when the Sessions pane is focused and on
@@ -92,6 +92,9 @@ submitting an empty alias removes the entry and restores the default name.
 - **Code blocks** — fenced code follows the app theme with a matching
   pygments style. Set `CCSESSIONS_CODE_THEME` to pin a specific one
   (any name from `pygments.styles.get_all_styles()`).
+- `CCSESSIONS_REFRESH_SECONDS` — auto-refresh interval (default `10`, `0`
+  disables it). Rescans keep your selection and never scroll the
+  conversation pane; they pause while a dialog or the filter bar is open.
 - `~/.config/ccsessions/aliases.json` — project display aliases, managed
   with the `n` key.
 

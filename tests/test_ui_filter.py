@@ -61,8 +61,13 @@ async def _exercise_filters() -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert pt.row_count == 2
+            # clearing the filter keeps the selected project, it does not snap back
+            selected = app._current_project()
+            assert selected is not None and selected.display_name == "beta"
 
-            # session filter within the first project
+            # back to the first project for the session filter
+            await pilot.press("k")
+            await pilot.pause()
             await pilot.press("tab")
             await pilot.press("/")
             for ch in "docs":
@@ -118,3 +123,49 @@ async def _exercise_export(tmp_path: Path) -> None:
 
 def test_export_from_ui(tmp_path):
     asyncio.run(_exercise_export(tmp_path))
+
+
+async def _exercise_refresh_keeps_selection() -> None:
+    from textual.widgets import DataTable
+
+    state = {"extra": False}
+
+    def build(**_kw):
+        projects = _fake_projects()
+        if state["extra"]:
+            fresh = Session(
+                session_id="s-new",
+                jsonl_path=Path("/nonexistent/new.jsonl"),
+                project_path="/tmp/x",
+                first_prompt="brand new session",
+                is_live=True,
+            )
+            projects[0].sessions.insert(0, fresh)
+        return projects
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", build):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            stable = app.query_one("#sessions-table", DataTable)
+            await pilot.press("tab")  # sessions pane
+            await pilot.press("j")  # second session
+            await pilot.pause()
+            before = app._current_session()
+            assert before is not None and before.first_prompt == "write docs"
+
+            # a rescan that prepends a new live session must not move the cursor
+            state["extra"] = True
+            app._tick_refresh()
+            await app.workers.wait_for_complete()
+            for _ in range(4):
+                await pilot.pause()
+
+            after = app._current_session()
+            assert stable.row_count == 3
+            assert after is not None and after.first_prompt == "write docs"
+
+
+def test_refresh_keeps_selection():
+    asyncio.run(_exercise_refresh_keeps_selection())
