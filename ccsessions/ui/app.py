@@ -37,6 +37,7 @@ from ..core.models import Project, Session, TokenStats
 from ..core.parser import read_conversation_tail
 from ..core.resume import ResumeRequest, build_resume_command
 from ..core.settings import load_settings, save_settings
+from ..core.watch import LiveDoc, WatchError, gitignore_hint, has_live_doc, live_doc_path
 
 
 # explicit pygments style for fenced code blocks (empty = follow the app
@@ -412,6 +413,7 @@ class CCSessionsApp(App):
         Binding("d", "delete", "Delete"),
         Binding("n", "rename", "Rename"),
         Binding("e", "export", "Export"),
+        Binding("w", "watch", "Live doc"),
         Binding("/", "filter", "Filter"),
         Binding("ctrl+r", "refresh", "Refresh"),
         Binding("tab", "focus_next", "Next pane", show=False),
@@ -429,6 +431,8 @@ class CCSessionsApp(App):
         self._session_filter = ""
         self._filter_target = "projects"
         self._preview_key: tuple[str, object] | None = None
+        # live documents kept up to date while this app runs, by session id
+        self._watches: dict[str, LiveDoc] = {}
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
@@ -467,7 +471,7 @@ class CCSessionsApp(App):
         ptable.add_columns(" ", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
         stable = self.query_one("#sessions-table", DataTable)
-        stable.add_columns(" ", "Title", "Msgs", "Tokens", "Modified")
+        stable.add_columns(" ", "  ", "Title", "Msgs", "Tokens", "Modified")
         stable.border_title = "Sessions"
         self.query_one("#info-scroll").border_title = "Details"
         self.query_one("#conv-scroll").border_title = "Conversation"
@@ -477,6 +481,8 @@ class CCSessionsApp(App):
         interval = _auto_refresh_seconds()
         if interval:
             self.set_interval(interval, self._tick_refresh)
+        # live documents need a tighter loop than the session list
+        self.set_interval(2.0, self._tick_watches)
         # re-render the details pane when the theme changes (Ctrl+P)
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
@@ -686,6 +692,23 @@ class CCSessionsApp(App):
             self._update_sessions_table([])
             self._update_preview(None)
 
+    def _watch_state(self, session: Session) -> str:
+        """'live' (updating now), 'idle' (following, session stopped),
+        'stale' (file on disk, nobody updating) or '' (no document)."""
+        if session.session_id in self._watches:
+            return "live" if session.is_live else "idle"
+        return "stale" if has_live_doc(session) else ""
+
+    def _watch_eye(self, session: Session, pal: dict[str, str]) -> Text:
+        state = self._watch_state(session)
+        if state == "live":
+            return Text("◉", style=pal["success"])
+        if state == "idle":
+            return Text("◉", style=pal["warning"])
+        if state == "stale":
+            return Text("◌", style=pal["muted"])
+        return Text(" ")
+
     def _update_sessions_table(self, sessions: list[Session]) -> None:
         table = self.query_one("#sessions-table", DataTable)
         pal = self._palette()
@@ -725,7 +748,7 @@ class CCSessionsApp(App):
             tok_text = "-" if s.is_missing else fmt_tokens(s.tokens)
             tokens = Text(tok_text, style=tok_style, justify="right")
             modified = Text(fmt_date(s.modified), style=pal["muted"])
-            table.add_row(marker, desc, count, tokens, modified)
+            table.add_row(marker, self._watch_eye(s, pal), desc, count, tokens, modified)
         if prev_sid is not None:
             for row, s in enumerate(sessions):
                 if s.session_id == prev_sid:
@@ -802,6 +825,21 @@ class CCSessionsApp(App):
                 f"[{c_primary}]{escape(cmd)}[/]\n"
             )
 
+        watch_state = self._watch_state(session)
+        if watch_state:
+            label = {
+                "live": f"[{c_success}]◉ updating[/]",
+                "idle": f"[{c_warning}]◉ following (session stopped)[/]",
+                "stale": f"[{c_muted}]◌ file only — not updating[/]",
+            }[watch_state]
+            watch_line = (
+                f"\n[bold]Live document[/bold] [{c_muted}](w = toggle)[/]\n"
+                f"{label}\n"
+                f"[{c_primary}]{escape(str(live_doc_path(session)))}[/]\n"
+            )
+        else:
+            watch_line = ""
+
         t = session.tokens
         text = (
             f"{title_line}"
@@ -820,6 +858,7 @@ class CCSessionsApp(App):
             f"  [{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
             f"  [bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
             f"{resume_line}"
+            f"{watch_line}"
             f"\n"
             f"[bold]First prompt[/bold]\n"
             f"[{c_text}]{escape(first_prompt)}[/]"
@@ -1004,6 +1043,52 @@ class CCSessionsApp(App):
         inp.value = ""  # triggers Input.Changed, which clears the filter
         inp.display = False
         self._focus_after_filter()
+
+    def action_watch(self) -> None:
+        """Toggle the live Markdown document for the selected session."""
+        s = self._current_session()
+        if s is None:
+            return
+        if s.session_id in self._watches:
+            path = self._watches.pop(s.session_id).out_path
+            self._set_status(f"Live doc stopped (file kept): {path}")
+            self._refresh_watch_ui()
+            return
+        if s.is_missing:
+            self._set_status("Cannot follow — transcript not on this machine")
+            self.bell()
+            return
+        try:
+            doc = LiveDoc(s)
+            doc.poll(s, force=True)
+        except WatchError as e:
+            self._set_status(f"Live doc failed: {e}")
+            self.bell()
+            return
+        self._watches[s.session_id] = doc
+        hint = gitignore_hint(s)
+        self._set_status(f"Live doc → {doc.out_path}" + (f"  ·  {hint}" if hint else ""))
+        self._refresh_watch_ui()
+
+    def _refresh_watch_ui(self) -> None:
+        """Redraw the eye column and the details pane after a watch toggle."""
+        self._refresh_projects_table()
+        self._update_preview(self._current_session(), force=True)
+
+    def _tick_watches(self) -> None:
+        """Refresh live documents; runs often, but only reads appended bytes."""
+        if not self._watches:
+            return
+        sessions = {s.session_id: s for p in self.projects for s in p.sessions}
+        for sid, doc in list(self._watches.items()):
+            session = sessions.get(sid)
+            if session is None:
+                continue
+            try:
+                doc.poll(session)
+            except WatchError as e:
+                self._watches.pop(sid, None)
+                self._set_status(f"Live doc stopped: {e}")
 
     def action_export(self) -> None:
         s = self._current_session()

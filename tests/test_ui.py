@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import ccsessions.ui.app as appmod
 from ccsessions.core.models import Project, Session
+from textual.widgets import Static
+
 from ccsessions.ui.app import CCSessionsApp
 
 
@@ -169,3 +171,48 @@ async def _exercise_refresh_keeps_selection() -> None:
 
 def test_refresh_keeps_selection():
     asyncio.run(_exercise_refresh_keeps_selection())
+
+
+async def _exercise_watch(tmp_path: Path) -> None:
+    import json
+
+    from textual.widgets import DataTable
+
+    projects = _fake_projects()
+    session = projects[0].sessions[0]
+    transcript = tmp_path / "watched.jsonl"
+    transcript.write_text(
+        json.dumps({"type": "user", "message": {"role": "user", "content": "hello"}}) + "\n",
+        encoding="utf-8",
+    )
+    session.jsonl_path = transcript
+    session.project_path = str(tmp_path)
+    session.is_live = True
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pilot.press("tab")  # sessions pane
+            assert app._watch_state(session) == ""
+
+            await pilot.press("w")  # start following
+            await pilot.pause()
+            doc = tmp_path / f"_session_{session.session_id}.md"
+            assert doc.is_file()
+            assert app._watch_state(session) == "live"
+            assert "## You\n\nhello" in doc.read_text(encoding="utf-8")
+
+            # the details pane advertises the document path
+            details = str(app.query_one("#preview-content", Static).render())
+            assert "Live document" in details
+
+            await pilot.press("w")  # stop following
+            await pilot.pause()
+            assert doc.is_file()  # the file stays behind
+            assert app._watch_state(session) == "stale"
+
+
+def test_watch_toggle_creates_and_keeps_document(tmp_path):
+    asyncio.run(_exercise_watch(tmp_path))

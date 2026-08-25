@@ -28,6 +28,11 @@ A fast terminal UI for browsing, previewing, resuming and managing
 - **Export** — write a whole session to Markdown (YAML front matter with
   session metadata, then the conversation — ready for Quarto/Pandoc) or copy
   the raw JSONL transcript verbatim; existing files are never overwritten
+- **Live document** — `w` keeps `_session_<id>.md` in the project directory in
+  sync with a running session, so an external renderer (`quarto preview`,
+  VS Code, Marked, Obsidian) can display the conversation **with LaTeX
+  rendered** while you work in the terminal. Only appended bytes are read, so
+  following a 300 MB transcript costs nothing
 - **Fast** — token stats are cached per transcript (invalidated by
   mtime + size), scanning runs off the UI thread, and conversation previews
   read only the tail of multi-megabyte files
@@ -70,12 +75,29 @@ ccsessions
 | `d` | Delete session / project (with confirmation) |
 | `n` | Rename project (set a display alias) |
 | `e` | Export the session (Markdown or raw JSONL) |
+| `w` | Follow the session in a live Markdown document |
 | `/` | Filter the focused list (projects or sessions) |
 | `Ctrl+R` | Rescan `~/.claude` now (a rescan also runs automatically) |
 | `q` | Quit |
 
 `a` and `d` act on the **session** when the Sessions pane is focused and on
 the whole **project** when the Projects pane is focused.
+
+### Live documents
+
+`w` toggles a live Markdown document for the selected session, written to
+`_session_<session-id>.md` in that session's project directory and updated
+every couple of seconds while ccsessions runs. Point any live-reloading
+Markdown renderer at it — `quarto preview _session_<id>.md` renders LaTeX
+with KaTeX, which is the point: formulas Claude writes in the terminal
+become readable.
+
+The eye column shows the state: **◉ green** — following a running session,
+**◉ yellow** — following, but the session is not running, **◌ grey** — the
+file exists but nothing is updating it (from an earlier run or another
+machine). Quitting ccsessions stops all updates and leaves the files in
+place; there are no background processes to track down. Add
+`_session_*.md` to `.gitignore` in git repositories.
 
 Project names default to the last component of the project's working
 directory. `n` sets a purely cosmetic alias (stored in

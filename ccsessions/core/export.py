@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 
@@ -149,7 +150,7 @@ def normalize_markdown(text: str) -> str:
     return "\n".join(out)
 
 
-def _front_matter(session: Session) -> str:
+def front_matter(session: Session, extra: dict[str, object] | None = None) -> str:
     def q(value: object) -> str:
         return json.dumps(str(value), ensure_ascii=False)
 
@@ -175,31 +176,38 @@ def _front_matter(session: Session) -> str:
         f"  cache_write: {t.cache_write}",
         f"  total: {t.total}",
         "exported_by: ccsessions",
-        "---",
-        "",
     ]
+    for key, value in (extra or {}).items():
+        lines.append(f"{key}: {q(value) if isinstance(value, str) else value}")
+    lines += ["---", ""]
     return "\n".join(lines)
+
+
+def markdown_chunks(entries: Iterable[tuple[str, str]]) -> Iterator[str]:
+    """Render (role, text) entries as Markdown fragments."""
+    bullets = {"tool": "⚙", "command": "⌘"}
+    prev_role = ""
+    for role, text in entries:
+        if role in bullets:
+            # keep a run of tool calls as one tight list
+            if prev_role not in bullets:
+                yield "\n"
+            yield f"- {bullets[role]} `{text.replace('`', '')}`\n"
+        elif role == "command-output":
+            yield f"\n```txt\n{text}\n```\n"
+        else:
+            speaker = "You" if role == "user" else "Claude"
+            yield f"\n## {speaker}\n\n{normalize_markdown(text)}\n"
+        prev_role = role
 
 
 def export_markdown(session: Session, dest: Path) -> Path:
     """Write the whole conversation as Markdown with YAML front matter."""
-    bullets = {"tool": "⚙", "command": "⌘"}
     try:
         with open(dest, "w", encoding="utf-8") as out:
-            out.write(_front_matter(session))
-            prev_role = ""
-            for role, text in iter_conversation(session.jsonl_path):
-                if role in bullets:
-                    # keep a run of tool calls as one tight list
-                    if prev_role not in bullets:
-                        out.write("\n")
-                    out.write(f"- {bullets[role]} `{text.replace('`', '')}`\n")
-                elif role == "command-output":
-                    out.write(f"\n```txt\n{text}\n```\n")
-                else:
-                    speaker = "You" if role == "user" else "Claude"
-                    out.write(f"\n## {speaker}\n\n{normalize_markdown(text)}\n")
-                prev_role = role
+            out.write(front_matter(session))
+            for chunk in markdown_chunks(iter_conversation(session.jsonl_path)):
+                out.write(chunk)
     except OSError as e:
         raise ExportError(str(e)) from e
     return dest

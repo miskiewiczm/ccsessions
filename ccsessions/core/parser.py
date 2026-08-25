@@ -118,7 +118,7 @@ def _classify_user_text(text: str) -> tuple[str, str] | None:
     return ("user", text)
 
 
-def _entries_from_line(line: str) -> list[tuple[str, str]]:
+def entries_from_line(line: str) -> list[tuple[str, str]]:
     """Parse one JSONL record into zero or more (role, text) entries."""
     line = line.strip()
     if not line:
@@ -196,7 +196,7 @@ def read_conversation_tail(
 
     entries: list[tuple[str, str]] = []
     for line in lines:
-        entries.extend(_entries_from_line(line))
+        entries.extend(entries_from_line(line))
     return entries[-max_entries:]
 
 
@@ -209,6 +209,6 @@ def iter_conversation(jsonl_path: Path) -> Iterator[tuple[str, str]]:
     try:
         with open(jsonl_path, encoding="utf-8", errors="replace") as f:
             for line in f:
-                yield from _entries_from_line(line)
+                yield from entries_from_line(line)
     except OSError:
         return

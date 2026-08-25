@@ -21,3 +21,6 @@ venv/
 
 # Claude Code local settings
 .claude/
+
+# ccsessions live documents
+_session_*.md
