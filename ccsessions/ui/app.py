@@ -378,15 +378,18 @@ class CCSessionsApp(App):
     Screen.-narrow #info-scroll { height: 1fr; width: 100%; }
     Screen.-narrow #conv-scroll { width: 100%; height: 1fr; }
 
-    /* prominent cursor only in the focused table */
+    /* Cursor bar stays neutral so per-cell colors (live dot, eye) survive on
+       the highlighted row — with an accent bar, a green eye on green would
+       vanish. Focus is signalled by the brighter bar plus the pane border. */
     DataTable > .datatable--cursor {
         background: $panel;
         color: $text;
     }
 
     DataTable:focus > .datatable--cursor {
-        background: $accent;
+        background: ansi_bright_black;
         color: $text;
+        text-style: bold;
     }
 
     /* column labels are chrome, not data — cyan/nord8 reads lighter than the
@@ -457,9 +460,20 @@ class CCSessionsApp(App):
         yield Header()
         with Container(id="main"):
             with Container(id="group"):
-                yield DataTable(id="projects-table", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="projects-table",
+                    cursor_type="row",
+                    zebra_stripes=True,
+                    cursor_foreground_priority="renderable",
+                )
                 with Container(id="sub"):
-                    yield DataTable(id="sessions-table", cursor_type="row", zebra_stripes=True)
+                    yield DataTable(
+                        id="sessions-table",
+                        cursor_type="row",
+                        zebra_stripes=True,
+                        # let cell colors survive on the highlighted row
+                        cursor_foreground_priority="renderable",
+                    )
                     with VerticalScroll(id="info-scroll"):
                         yield Static("", id="preview-content", markup=True)
             with VerticalScroll(id="conv-scroll"):
