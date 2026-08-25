@@ -92,6 +92,12 @@ Markdown renderer at it — `quarto preview _session_<id>.md` renders LaTeX
 with KaTeX, which is the point: formulas Claude writes in the terminal
 become readable.
 
+> **If the project is itself a Quarto project**, `quarto preview` serves the
+> project's output directory and cannot reach a document sitting next to it
+> (you get a 404 and a `/../` in the URL). Set `CCSESSIONS_LIVE_DIR` to a
+> plain directory — e.g. `export CCSESSIONS_LIVE_DIR=~/live` — and live
+> documents are written there instead.
+
 The eye column shows the state: **◉ green** — following a running session,
 **◉ yellow** — following, but the session is not running, **◌ grey** — the
 file exists but nothing is updating it (from an earlier run or another
@@ -116,6 +122,9 @@ submitting an empty alias removes the entry and restores the default name.
 - **Code blocks** — fenced code follows the app theme with a matching
   pygments style. Set `CCSESSIONS_CODE_THEME` to pin a specific one
   (any name from `pygments.styles.get_all_styles()`).
+- `CCSESSIONS_LIVE_DIR` — where live documents (`w`) are written; defaults to
+  the session's own project directory. Point it at a plain directory when your
+  projects are Quarto projects.
 - `CCSESSIONS_REFRESH_SECONDS` — auto-refresh interval (default `10`, `0`
   disables it). Rescans keep your selection and never scroll the
   conversation pane; they pause while a dialog or the filter bar is open.

@@ -141,3 +141,13 @@ def test_gitignore_hint_only_for_unprepared_repos(session, tmp_path):
     assert "gitignore" in gitignore_hint(session)
     (tmp_path / ".gitignore").write_text("_session_*.md\n", encoding="utf-8")
     assert gitignore_hint(session) == ""
+
+
+def test_live_dir_override_redirects_documents(session, tmp_path, monkeypatch):
+    elsewhere = tmp_path / "live" / "docs"
+    monkeypatch.setenv("CCSESSIONS_LIVE_DIR", str(elsewhere))
+    doc = LiveDoc(session)  # the directory is created on demand
+    doc.poll(session, force=True)
+    assert doc.out_path == elsewhere / "_session_abc-123.md"
+    assert doc.out_path.is_file()
+    assert not (tmp_path / "_session_abc-123.md").exists()
