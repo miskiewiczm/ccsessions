@@ -386,8 +386,11 @@ class CCSessionsApp(App):
         color: $text;
     }
 
+    /* Measured: with a 16-colour palette no bar colour keeps every marker
+       readable, so the selected row goes uniform and the Details pane carries
+       its state instead. */
     DataTable:focus > .datatable--cursor {
-        background: ansi_bright_black;
+        background: $accent;
         color: $text;
         text-style: bold;
     }
@@ -464,15 +467,12 @@ class CCSessionsApp(App):
                     id="projects-table",
                     cursor_type="row",
                     zebra_stripes=True,
-                    cursor_foreground_priority="renderable",
                 )
                 with Container(id="sub"):
                     yield DataTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
-                        # let cell colors survive on the highlighted row
-                        cursor_foreground_priority="renderable",
                     )
                     with VerticalScroll(id="info-scroll"):
                         yield Static("", id="preview-content", markup=True)
@@ -736,7 +736,8 @@ class CCSessionsApp(App):
         if state == "idle":
             return Text(EYE_ON, style=pal["warning"])
         if state == "stale":
-            return Text(EYE_OFF, style=pal["muted"])
+            # blue rather than grey: a muted glyph vanishes into the cursor bar
+            return Text(EYE_OFF, style=pal["primary"])
         return Text(" ")
 
     def _update_sessions_table(self, sessions: list[Session]) -> None:
