@@ -95,7 +95,9 @@ become readable.
 The eye column shows the state: **◉ green** — following a running session,
 **◉ yellow** — following, but the session is not running, **◌ grey** — the
 file exists but nothing is updating it (from an earlier run or another
-machine). Quitting ccsessions stops all updates and leaves the files in
+machine). With a Nerd Font in your terminal, set `CCSESSIONS_NERD_FONT=1`
+for a proper eye glyph (or set `CCSESSIONS_EYE` / `CCSESSIONS_EYE_OFF` to
+any characters you like). Quitting ccsessions stops all updates and leaves the files in
 place; there are no background processes to track down. Add
 `_session_*.md` to `.gitignore` in git repositories.
 

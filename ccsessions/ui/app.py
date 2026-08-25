@@ -48,6 +48,22 @@ CODE_THEME_OVERRIDE = os.environ.get("CCSESSIONS_CODE_THEME", "")
 APP_THEME_OVERRIDE = os.environ.get("CCSESSIONS_THEME", "")
 
 
+def _eye_glyphs() -> tuple[str, str]:
+    """Glyphs for the live-document column: (following, file only).
+
+    Plain Unicode by default so the app looks right in any terminal;
+    CCSESSIONS_NERD_FONT=1 switches to the Nerd Fonts eye, and either glyph
+    can be overridden outright.
+    """
+    nerd = os.environ.get("CCSESSIONS_NERD_FONT", "").lower() not in ("", "0", "false", "no")
+    on = os.environ.get("CCSESSIONS_EYE") or ("\U000f06d0" if nerd else "◉")
+    off = os.environ.get("CCSESSIONS_EYE_OFF") or ("\U000f06d0" if nerd else "◌")
+    return on, off
+
+
+EYE_ON, EYE_OFF = _eye_glyphs()
+
+
 def _auto_refresh_seconds() -> float:
     """Rescan interval in seconds; 0 disables auto-refresh."""
     try:
@@ -702,11 +718,11 @@ class CCSessionsApp(App):
     def _watch_eye(self, session: Session, pal: dict[str, str]) -> Text:
         state = self._watch_state(session)
         if state == "live":
-            return Text("◉", style=pal["success"])
+            return Text(EYE_ON, style=pal["success"])
         if state == "idle":
-            return Text("◉", style=pal["warning"])
+            return Text(EYE_ON, style=pal["warning"])
         if state == "stale":
-            return Text("◌", style=pal["muted"])
+            return Text(EYE_OFF, style=pal["muted"])
         return Text(" ")
 
     def _update_sessions_table(self, sessions: list[Session]) -> None:
