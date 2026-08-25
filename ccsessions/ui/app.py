@@ -386,11 +386,11 @@ class CCSessionsApp(App):
         color: $text;
     }
 
-    /* Measured: with a 16-colour palette no bar colour keeps every marker
-       readable, so the selected row goes uniform and the Details pane carries
-       its state instead. */
+    /* The selected row goes uniform (cell colours cannot survive a solid bar
+       in a 16-colour palette — measured), and grey carries light text far
+       better than the accent colour does: contrast 5.46 versus 1.51. */
     DataTable:focus > .datatable--cursor {
-        background: $accent;
+        background: ansi_bright_black;
         color: $text;
         text-style: bold;
     }
