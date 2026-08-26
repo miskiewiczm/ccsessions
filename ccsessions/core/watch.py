@@ -157,4 +157,4 @@ def gitignore_hint(session: Session) -> str:
             return ""
     except OSError:
         return ""
-    return "tip: add `_session_*.md` to .gitignore"
+    return "tip: add `_session_*` to .gitignore"

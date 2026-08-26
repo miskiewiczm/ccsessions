@@ -24,3 +24,5 @@ venv/
 
 # ccsessions live documents
 _session_*.md
+_session_*.html
+_session_*_files/
