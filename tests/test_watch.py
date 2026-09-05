@@ -59,7 +59,7 @@ def test_first_write_contains_front_matter_and_conversation(session):
     assert 'session_id: "abc-123"' in text
     assert 'live: "yes"' in text
     assert "window: 30" in text
-    assert "## You\n\nfirst question" in text
+    assert "### You\n\nfirst question" in text
     assert has_live_doc(session)
 
 

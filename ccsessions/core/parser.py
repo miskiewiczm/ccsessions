@@ -4,10 +4,11 @@ import json
 import os
 import re
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .models import TokenStats
+from .models import Entry, TokenStats
 
 if TYPE_CHECKING:
     from .cache import TokenCache
@@ -118,8 +119,19 @@ def _classify_user_text(text: str) -> tuple[str, str] | None:
     return ("user", text)
 
 
-def entries_from_line(line: str) -> list[tuple[str, str]]:
-    """Parse one JSONL record into zero or more (role, text) entries."""
+def _parse_ts(value: object) -> "datetime | None":
+    """Parse the ISO-8601 timestamp Claude Code writes on every record."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        # fromisoformat only learned to read the trailing "Z" in 3.11
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def entries_from_line(line: str) -> list[Entry]:
+    """Parse one JSONL record into zero or more entries."""
     line = line.strip()
     if not line:
         return []
@@ -133,6 +145,7 @@ def entries_from_line(line: str) -> list[tuple[str, str]]:
     msg = obj.get("message")
     if typ not in ("user", "assistant") or not isinstance(msg, dict):
         return []
+    ts = _parse_ts(obj.get("timestamp"))
     content = msg.get("content")
 
     if typ == "user":
@@ -152,20 +165,20 @@ def entries_from_line(line: str) -> list[tuple[str, str]]:
         if not text:
             return []
         entry = _classify_user_text(text)
-        return [entry] if entry is not None else []
+        return [Entry(*entry, ts)] if entry is not None else []
 
     if not isinstance(content, list):
         return []
-    entries: list[tuple[str, str]] = []
+    entries: list[Entry] = []
     for b in content:
         if not isinstance(b, dict):
             continue
         btype = b.get("type")
         if btype == "text" and isinstance(b.get("text"), str) and b["text"].strip():
-            entries.append(("assistant", b["text"].strip()))
+            entries.append(Entry("assistant", b["text"].strip(), ts))
         elif btype == "tool_use":
             name = str(b.get("name") or "?")
-            entries.append(("tool", _summarize_tool_use(name, b.get("input"))))
+            entries.append(Entry("tool", _summarize_tool_use(name, b.get("input")), ts))
     return entries
 
 
@@ -173,10 +186,10 @@ def read_conversation_tail(
     jsonl_path: Path,
     max_entries: int = 40,
     max_bytes: int = 512_000,
-) -> list[tuple[str, str]]:
-    """Last conversation entries as (role, text) pairs.
+) -> list[Entry]:
+    """Last conversation entries, newest last.
 
-    Role is 'user', 'assistant', 'tool' (tool call), 'command'
+    Entry.role is 'user', 'assistant', 'tool' (tool call), 'command'
     (slash command) or 'command-output'. Only the tail of the file
     (max_bytes) is read, so this stays fast even for transcripts
     spanning many megabytes.
@@ -194,14 +207,14 @@ def read_conversation_tail(
     if start > 0 and lines:
         lines = lines[1:]  # the first line is usually cut mid-record
 
-    entries: list[tuple[str, str]] = []
+    entries: list[Entry] = []
     for line in lines:
         entries.extend(entries_from_line(line))
     return entries[-max_entries:]
 
 
-def iter_conversation(jsonl_path: Path) -> Iterator[tuple[str, str]]:
-    """Stream the whole conversation as (role, text) pairs.
+def iter_conversation(jsonl_path: Path) -> Iterator[Entry]:
+    """Stream the whole conversation, one entry at a time.
 
     Reads line by line, so even multi-hundred-megabyte transcripts
     never land in memory at once.

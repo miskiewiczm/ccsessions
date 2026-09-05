@@ -1,6 +1,6 @@
 [project]
 name = "ccsessions-tui"
-version = "0.3.0"
+version = "0.4.0"
 description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -49,3 +49,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ccsessions"]
+
+[tool.hatch.build.targets.sdist]
+# optional Quarto themes — repo only, never shipped in a package
+exclude = ["/extras"]

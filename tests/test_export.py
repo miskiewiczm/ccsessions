@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -12,10 +12,11 @@ from ccsessions.core.export import (
     ExportError,
     default_filename,
     export_session,
+    markdown_chunks,
     normalize_markdown,
     resolve_destination,
 )
-from ccsessions.core.models import Session, TokenStats
+from ccsessions.core.models import Entry, Session, TokenStats
 
 
 def _session(tmp_path: Path) -> Session:
@@ -97,8 +98,10 @@ def test_markdown_export_content(tmp_path):
     assert 'git_branch: "main"' in text
     assert "  total: 30" in text
     # conversation
-    assert "## You\n\nhow do I sort a list?" in text
-    assert "## Claude" in text
+    # fixtures carry no per-record timestamps, so the day section falls back
+    assert "## Conversation\n" in text
+    assert "### You\n\nhow do I sort a list?" in text
+    assert "### Claude" in text
     assert "```python\nsorted(xs)\n```" in text  # code fences survive verbatim
     assert "- ⚙ `Bash: python3 -c 1`" in text
     assert "- ⌘ `/exit`" in text
@@ -112,8 +115,31 @@ def test_raw_export_is_byte_identical(tmp_path):
 
 def test_headings_are_demoted_below_role_headings():
     out = normalize_markdown("## Section\ntext\n### Sub")
-    assert "### Section" in out
-    assert "#### Sub" in out
+    assert "#### Section" in out
+    assert "##### Sub" in out
+
+
+def test_turns_are_grouped_into_one_section_per_day():
+    stamps = [
+        datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc),
+        datetime(2026, 9, 3, 12, 30, tzinfo=timezone.utc),
+        datetime(2026, 9, 5, 12, 0, tzinfo=timezone.utc),
+    ]
+    entries = [
+        Entry("user", "wednesday question", stamps[0]),
+        Entry("assistant", "wednesday answer", stamps[1]),
+        Entry("user", "friday question", stamps[2]),
+    ]
+    out = "".join(markdown_chunks(entries))
+    headings = [ln for ln in out.splitlines() if ln.startswith("#")]
+    # days are derived the same way the renderer does it, so the assertion
+    # holds in any timezone rather than only where UTC dates survive
+    expected = sorted({f"## {s.astimezone():%Y-%m-%d}" for s in stamps})
+    # one section per distinct day, never one per turn
+    assert [h for h in headings if h.startswith("## ")] == expected
+    assert sum(h.startswith("### ") for h in headings) == 3
+    # the day carries the date, so the speaker heading only needs the clock
+    assert any(h.startswith("### You · ") and len(h) == len("### You · 00:00") for h in headings)
 
 
 def test_headings_inside_code_fences_are_untouched():

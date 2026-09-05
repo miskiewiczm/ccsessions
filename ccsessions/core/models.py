@@ -3,6 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
+
+
+class Entry(NamedTuple):
+    """One conversation entry parsed from a transcript line.
+
+    `ts` comes from the record's own `timestamp` field, which Claude Code
+    writes on every line — so it is available for every past session, with
+    no local configuration involved.
+    """
+
+    role: str  # user | assistant | tool | command | command-output
+    text: str
+    ts: datetime | None = None  # aware, UTC; None when the record carries none
 
 
 @dataclass

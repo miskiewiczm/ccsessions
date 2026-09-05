@@ -4,10 +4,10 @@ import json
 import re
 import shutil
 from collections.abc import Iterable, Iterator
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
-from .models import Session
+from .models import Entry, Session
 from .parser import iter_conversation
 
 MARKDOWN = "markdown"
@@ -86,17 +86,17 @@ def _min_heading_level(lines: list[str]) -> int:
 
 
 def normalize_markdown(text: str) -> str:
-    """Make message text safe to embed under `## You` / `## Claude`.
+    """Make message text safe to embed under `### You` / `### Claude`.
 
-    - headings are demoted so the shallowest one is `###` (role headings stay
-      the top level of the document)
+    - headings are demoted so the shallowest one is `####`, staying below the
+      day (`##`) and speaker (`###`) headings that frame every turn
     - bare code fences get a `txt` info string (Pandoc/Quarto prefer one)
     - a list directly after a paragraph line gets a blank line before it,
       otherwise strict parsers glue them together
     - the `★ Insight` marker lines get breathing room on the inside
     """
     lines = text.split("\n")
-    shift = max(0, 3 - _min_heading_level(lines))
+    shift = max(0, 4 - _min_heading_level(lines))
 
     out: list[str] = []
     fence: str | None = None
@@ -183,11 +183,37 @@ def front_matter(session: Session, extra: dict[str, object] | None = None) -> st
     return "\n".join(lines)
 
 
-def markdown_chunks(entries: Iterable[tuple[str, str]]) -> Iterator[str]:
-    """Render (role, text) entries as Markdown fragments."""
+def heading_stamp(local: "datetime | None") -> str:
+    """Clock suffix for a speaker heading; empty when the entry has no time.
+
+    Only the time — the date is carried by the `##` day section above.
+    """
+    return f" · {local:%H:%M}" if local is not None else ""
+
+
+def markdown_chunks(entries: Iterable[Entry]) -> Iterator[str]:
+    """Render conversation entries as Markdown fragments.
+
+    Turns are grouped into one `##` section per day, so the outline (and
+    Quarto's table of contents) reads as a timeline rather than a hundred
+    identical speaker entries. The `title:` field of the front matter
+    renders as the H1 above them, so the levels never skip.
+    """
     bullets = {"tool": "⚙", "command": "⌘"}
     prev_role = ""
-    for role, text in entries:
+    day: date | None = None
+    opened = False
+    for role, text, ts in entries:
+        local = ts.astimezone() if ts is not None else None
+        if local is not None and local.date() != day:
+            day = local.date()
+            opened = True
+            yield f"\n## {day:%Y-%m-%d}\n"
+        elif not opened:
+            # transcripts predating per-record timestamps still need a level-2
+            # section, or the turns below would skip a heading level
+            opened = True
+            yield "\n## Conversation\n"
         if role in bullets:
             # keep a run of tool calls as one tight list
             if prev_role not in bullets:
@@ -197,7 +223,7 @@ def markdown_chunks(entries: Iterable[tuple[str, str]]) -> Iterator[str]:
             yield f"\n```txt\n{text}\n```\n"
         else:
             speaker = "You" if role == "user" else "Claude"
-            yield f"\n## {speaker}\n\n{normalize_markdown(text)}\n"
+            yield f"\n### {speaker}{heading_stamp(local)}\n\n{normalize_markdown(text)}\n"
         prev_role = role
 
 

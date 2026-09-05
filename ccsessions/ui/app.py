@@ -130,6 +130,18 @@ def rich_color(theme_color: str | None, fallback: str) -> str:
     return theme_color
 
 
+def stamp_label(local: datetime) -> str:
+    """Time alone for today's entries, date and time for older ones.
+
+    The preview scrolls to the newest entry, so a day separator at the top of
+    the block is easy to miss — an entry from another day has to carry its
+    own date to be readable where the eye actually lands.
+    """
+    if local.date() == datetime.now().astimezone().date():
+        return f"{local:%H:%M}"
+    return f"{local:%Y-%m-%d %H:%M}"
+
+
 def short_path(path: str) -> str:
     home = str(Path.home())
     if path == home:
@@ -916,7 +928,16 @@ class CCSessionsApp(App):
             return
         pal = self._palette()
         parts: list[Text | Padding] = []
-        for role, text in entries:
+        prev_day = None
+        for role, text, ts in entries:
+            local = ts.astimezone() if ts is not None else None
+            if local is not None and local.date() != prev_day:
+                # sessions are often resumed days later — mark where each day starts
+                if prev_day is not None:
+                    parts.append(Text(""))
+                parts.append(Text(f"── {local:%Y-%m-%d} ──", style=pal["accent"]))
+                prev_day = local.date()
+            stamp = f"  {stamp_label(local)}" if local is not None else ""
             if role == "tool":
                 parts.append(Text(f"  ⚙ {text}", style=pal["muted"]))
                 continue
@@ -933,13 +954,17 @@ class CCSessionsApp(App):
             if role == "user":
                 # user prompts as plain text — markdown silently drops raw
                 # tags/pseudo-HTML, and fidelity matters more here
-                parts.append(Text("▌ You", style=f"bold {pal['primary']}"))
+                parts.append(
+                    Text.assemble(("▌ You", f"bold {pal['primary']}"), (stamp, pal["primary"]))
+                )
                 parts.append(Padding(Text(text, style=pal["text"]), (0, 0, 1, 2)))
             else:
                 code_theme = code_theme_for(
                     self.theme or "", self.current_theme.dark, CODE_THEME_OVERRIDE
                 )
-                parts.append(Text("▌ Claude", style=f"bold {pal['success']}"))
+                parts.append(
+                    Text.assemble(("▌ Claude", f"bold {pal['success']}"), (stamp, pal["success"]))
+                )
                 parts.append(Padding(Markdown(text, code_theme=code_theme), (0, 0, 1, 2)))
         widget.update(Group(*parts))
         # show the end of the conversation — that's where the freshest context is

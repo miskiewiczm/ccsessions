@@ -1,0 +1,31 @@
+/*-- scss:functions --*/
+// Nord — https://www.nordtheme.com/  (palette kept for the rules layer)
+$nord0:#2e3440; $nord1:#3b4252; $nord2:#434c5e; $nord3:#4c566a;
+$nord4:#d8dee9; $nord5:#e5e9f0; $nord6:#eceff4;
+$nord8:#88c0d0; $nord9:#81a1c1; $nord10:#5e81ac;
+$nord11:#bf616a; $nord13:#ebcb8b;
+
+/*-- scss:defaults --*/
+// literal values: Quarto emits this layer before the palette is visible
+$body-bg:      #eceff4;
+$body-color:   #2e3440;
+$link-color:   #5e81ac;
+$code-color:   #bf616a;
+$code-bg:      #e5e9f0;
+$pre-color:    #3b4252;
+$pre-bg:       #e5e9f0;
+$border-color: #d8dee9;
+
+/*-- scss:rules --*/
+h1, h2, h4 { color: #2e3440; }
+h2 { border-bottom: 1px solid #d8dee9; padding-bottom: .25rem; }
+h3, .h3 { color: #4e909f; }   // speaker turns
+
+// Quarto wraps highlighted code in div.sourceCode and leaves the inner <pre>
+// transparent, so the wrapper is what actually carries the background
+div.sourceCode { background-color: #e5e9f0; border-color: #d8dee9; }
+pre.sourceCode { background-color: transparent; }
+pre { color: #3b4252; background-color: #e5e9f0; border-color: #d8dee9; }
+code:not(.sourceCode) { background-color: #e5e9f0; color: #bf616a; }
+
+blockquote { border-left: 3px solid #81a1c1; color: #2e3440; }

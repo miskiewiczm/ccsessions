@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from ccsessions.core.parser import (
     compute_token_stats,
@@ -69,13 +70,39 @@ def test_conversation_tail_roles(tmp_path):
     ]
     f.write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
     tail = read_conversation_tail(f)
-    assert tail == [
+    assert [(e.role, e.text) for e in tail] == [
         ("user", "hello"),
         ("assistant", "hi!"),
         ("tool", "Bash: ls -la"),
         ("command", "/exit"),
         ("command-output", "Bye!"),
     ]
+
+
+def test_entries_carry_record_timestamps(tmp_path):
+    f = tmp_path / "s.jsonl"
+    events = [
+        {
+            "type": "user",
+            "timestamp": "2026-09-05T08:59:59.744Z",
+            "message": {"role": "user", "content": "hello"},
+        },
+        # records without a usable timestamp still parse, just without a time
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "hi!"}]},
+        },
+        {
+            "type": "user",
+            "timestamp": "not a date",
+            "message": {"role": "user", "content": "bye"},
+        },
+    ]
+    f.write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
+    stamped, unstamped, malformed = read_conversation_tail(f)
+    assert stamped.ts == datetime(2026, 9, 5, 8, 59, 59, 744000, tzinfo=timezone.utc)
+    assert unstamped.ts is None
+    assert malformed.ts is None
 
 
 def test_tail_reads_only_end_of_file(tmp_path):

@@ -7,7 +7,7 @@ from collections import deque
 from pathlib import Path
 
 from .export import front_matter, markdown_chunks
-from .models import Session
+from .models import Entry, Session
 from .parser import entries_from_line, read_conversation_tail
 
 DEFAULT_WINDOW = 30  # conversation entries kept in the live document
@@ -56,7 +56,7 @@ class LiveDoc:
         self.jsonl_path = session.jsonl_path
         self.out_path = live_doc_path(session)
         self.window = window
-        self._entries: deque[tuple[str, str]] = deque(maxlen=window)
+        self._entries: deque[Entry] = deque(maxlen=window)
         self._offset = 0
         self._partial = ""
         self._last_write = 0.0

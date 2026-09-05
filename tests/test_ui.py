@@ -114,7 +114,7 @@ async def _exercise_export(tmp_path: Path) -> None:
             await pilot.pause()
             exported = [p for p in tmp_path.iterdir() if p.suffix == ".md"]
             assert len(exported) == 1
-            assert "## You\n\nhello" in exported[0].read_text(encoding="utf-8")
+            assert "### You\n\nhello" in exported[0].read_text(encoding="utf-8")
 
             # escape cancels without writing anything
             await pilot.press("e")
@@ -202,7 +202,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             doc = tmp_path / f"_session_{session.session_id}.md"
             assert doc.is_file()
             assert app._watch_state(session) == "live"
-            assert "## You\n\nhello" in doc.read_text(encoding="utf-8")
+            assert "### You\n\nhello" in doc.read_text(encoding="utf-8")
 
             # the details pane advertises the document path
             details = str(app.query_one("#preview-content", Static).render())
