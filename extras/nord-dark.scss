@@ -18,8 +18,8 @@ $border-color: #434c5e;
 
 /*-- scss:rules --*/
 h1, h2, h4 { color: #eceff4; }
-h2 { border-bottom: 1px solid #434c5e; padding-bottom: .25rem; }
-h3, .h3 { color: #88c0d0; }   // speaker turns
+h2 { border-bottom: 3px solid #434c5e; padding-bottom: .25rem; }
+h3, .h3 { color: #88c0d0; border-bottom: 2px solid #88c0d0; padding-bottom: .2rem; }   // speaker turns
 
 // Quarto wraps highlighted code in div.sourceCode and leaves the inner <pre>
 // transparent, so the wrapper is what actually carries the background
