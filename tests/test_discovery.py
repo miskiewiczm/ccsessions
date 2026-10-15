@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from ccsessions.core.cache import TokenCache
 from ccsessions.core.discovery import discover_projects
 from ccsessions.core.manage import ARCHIVE_SUBDIR
 
@@ -29,6 +30,19 @@ def test_jsonl_without_index(fake_base):
     assert projects[0].project_path == "/tmp/fake-project"
     assert s.message_count == 4  # counted from the JSONL
     assert s.tokens.total == 30
+
+
+def test_rename_title_wins_and_last_one_counts(fake_base, tmp_path):
+    jsonl = fake_base / "-tmp-fake-project" / f"{SID}.jsonl"
+    with jsonl.open("a", encoding="utf-8") as f:
+        for name in ("first name", "final name"):
+            f.write(json.dumps({"type": "custom-title", "customTitle": name, "sessionId": SID}) + "\n")
+    cache = TokenCache(tmp_path / "cache.json")
+    for _ in range(2):  # second pass is served from the cache
+        s = discover_projects(base=fake_base, cache=cache)[0].sessions[0]
+        assert s.summary == "final name"  # beats the index summary
+        assert s.display_title == "final name"
+        assert s.tokens.total == 30
 
 
 def test_index_only_entry_is_missing(fake_base):
