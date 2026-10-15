@@ -50,6 +50,8 @@ class TokenCache:
                 cache_read=int(entry["cache_read"]),
                 cache_write=int(entry["cache_write"]),
                 messages=int(entry["messages"]),
+                # KeyError on entries cached before this field existed forces a re-read
+                custom_title=str(entry["custom_title"]),
             )
         except (KeyError, TypeError, ValueError):
             return None
@@ -63,6 +65,7 @@ class TokenCache:
             "cache_read": stats.cache_read,
             "cache_write": stats.cache_write,
             "messages": stats.messages,
+            "custom_title": stats.custom_title,
         }
         self._dirty = True
 

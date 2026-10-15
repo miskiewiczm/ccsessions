@@ -49,6 +49,11 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                     obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if isinstance(obj, dict) and obj.get("type") == "custom-title":
+                    title = obj.get("customTitle")
+                    if isinstance(title, str):
+                        stats.custom_title = title.strip()
+                    continue
                 msg = obj.get("message") if isinstance(obj, dict) else None
                 if not isinstance(msg, dict):
                     continue
