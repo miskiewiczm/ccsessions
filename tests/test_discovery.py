@@ -100,3 +100,20 @@ def test_project_index_metadata(fake_base):
     )
     projects = discover_projects(base=fake_base)
     assert [p.project_path for p in projects][0] == "/tmp/newer"
+
+
+def test_worktree_is_told_apart_from_its_main_checkout(fake_base):
+    # Claude Code gives a worktree its own directory, but the sessions inside
+    # report the main checkout's cwd: two projects, one path
+    wt = fake_base / "-tmp-fake-project--claude-worktrees-feature"
+    wt.mkdir()
+    sid2 = "44444444-aaaa-bbbb-cccc-000000000004"
+    write_transcript(wt / f"{sid2}.jsonl", cwd="/tmp/fake-project")
+
+    projects = discover_projects(base=fake_base)
+    assert len(projects) == 2
+    assert {p.project_path for p in projects} == {"/tmp/fake-project"}
+    assert {p.display_name for p in projects} == {
+        "fake-project",
+        "fake-project ⎇ feature",
+    }

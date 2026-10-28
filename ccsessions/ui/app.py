@@ -1203,10 +1203,10 @@ class CCSessionsApp(App):
                 return
             alias = result.strip()
             if alias:
-                self._aliases.set(p.project_path, alias)
+                self._aliases.set(p, alias)
                 msg = f"Alias set: {alias}"
             else:
-                self._aliases.remove(p.project_path)
+                self._aliases.remove(p)
                 msg = f"Alias removed — default name “{p.default_name}” restored"
             self._aliases.save()
             p.alias = alias

@@ -112,6 +112,12 @@ directory. `n` sets a purely cosmetic alias (stored in
 `~/.config/ccsessions/aliases.json` — nothing under `~/.claude` is touched);
 submitting an empty alias removes the entry and restores the default name.
 
+Claude worktrees show up as projects of their own, labelled
+`repo ⎇ worktree`: Claude Code gives each worktree a directory under
+`~/.claude/projects`, but the sessions inside report the main checkout's
+working directory, so the path alone cannot tell them apart. Aliases are keyed
+by that directory, so naming one of them leaves the other rows alone.
+
 ### Configuration
 
 - **Theme** — switch at runtime with Ctrl+P → "Change theme"; the choice is

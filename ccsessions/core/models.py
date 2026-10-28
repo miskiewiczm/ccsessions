@@ -72,9 +72,25 @@ class Project:
     alias: str = ""  # user-defined display name (see core.aliases)
 
     @property
+    def worktree(self) -> str:
+        """Name of the Claude worktree this directory holds, empty for a normal project.
+
+        Claude Code keeps worktrees under `<repo>/.claude-worktrees/<name>`,
+        which encodes to a directory named `…-repo--claude-worktrees-<name>`.
+        The sessions inside report the main checkout's cwd, so the directory
+        name is the only place the worktree is visible at all.
+        """
+        _, sep, name = self.encoded_dir.name.partition("--claude-worktrees-")
+        return name if sep else ""
+
+    @property
     def default_name(self) -> str:
-        name = Path(self.project_path).name
-        return name or self.project_path
+        name = Path(self.project_path).name or self.project_path
+        # a worktree shares the main checkout's path: without this the two rows
+        # are spelled identically and there is no telling them apart
+        if self.worktree and self.worktree != name:
+            return f"{name} ⎇ {self.worktree}"
+        return name
 
     @property
     def display_name(self) -> str:
