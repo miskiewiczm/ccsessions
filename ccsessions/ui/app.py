@@ -192,7 +192,7 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Container(id="dialog"):
-            yield Static(self._message, id="dialog-message")
+            yield Static(self._message, id="dialog-message", markup=False)
             with Horizontal(id="dialog-buttons"):
                 yield Button("Yes (y)", variant="error", id="yes")
                 yield Button("No (n)", id="no")
@@ -253,7 +253,7 @@ class RenameScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="rename-dialog"):
-            yield Static(f"Alias for “{self._default_name}”", id="rename-title")
+            yield Static(f"Alias for “{self._default_name}”", id="rename-title", markup=False)
             yield Static(
                 "Enter = save · Escape = cancel · empty = restore default name",
                 id="rename-hint",
@@ -310,7 +310,7 @@ class ExportScreen(ModalScreen[tuple[str, str] | None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="export-dialog"):
-            yield Static(f"Export “{self._title}”", id="export-title")
+            yield Static(f"Export “{self._title}”", id="export-title", markup=False)
             yield Static(
                 "Enter = export as Markdown · Tab → buttons to pick a format · Esc = cancel\n"
                 "A directory (or “.”) gets an auto-generated filename",
@@ -491,7 +491,9 @@ class CCSessionsApp(App):
             with VerticalScroll(id="conv-scroll"):
                 yield Static("", id="conversation-content", markup=False)
         yield FilterInput(id="filter-input")
-        yield Static("", id="status")
+        # markup off: these carry session titles and paths, never markup,
+        # so square brackets in a name must survive instead of being parsed
+        yield Static("", id="status", markup=False)
         yield Footer()
 
     def on_resize(self, event: events.Resize) -> None:

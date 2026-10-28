@@ -280,3 +280,34 @@ async def _exercise_refresh_keeps_project_sharing_path() -> None:
 
 def test_refresh_keeps_project_sharing_a_path():
     asyncio.run(_exercise_refresh_keeps_project_sharing_path())
+
+
+async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
+    """A session named with /rename can contain anything, including markup."""
+    from textual.widgets import Static
+
+    projects = _fake_projects()
+    projects[0].sessions[0].summary = "[urgent] refactor the parser"
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+            # the status bar must show the name whole, not swallow the brackets
+            app._set_status("Session deleted: [urgent] refactor the parser")
+            await pilot.pause()
+            assert "[urgent]" in str(app.query_one("#status", Static).render())
+
+            # and so must a dialog built from the same title
+            await pilot.press("tab")
+            await pilot.press("e")
+            await pilot.pause()
+            title = str(app.screen.query_one("#export-title", Static).render())
+            assert "[urgent]" in title
+            await pilot.press("escape")
+            await pilot.pause()
+
+
+def test_square_brackets_in_titles_survive(tmp_path):
+    asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
