@@ -26,6 +26,7 @@ class TokenStats:
     cache_read: int = 0
     cache_write: int = 0
     messages: int = 0  # user/assistant message count computed from the JSONL
+    custom_title: str = ""  # last name set with /rename, read from the JSONL
 
     @property
     def total(self) -> int:

@@ -69,7 +69,8 @@ def _build_session(
         jsonl_path=jsonl,
         project_path=entry.get("projectPath") or project_path_fallback,
         first_prompt=entry.get("firstPrompt") or "",
-        summary=entry.get("summary") or "",
+        # a name given with /rename is the user's choice, so it wins over the index summary
+        summary=tokens.custom_title or entry.get("summary") or "",
         message_count=int(entry.get("messageCount") or 0) or tokens.messages,
         created=_parse_iso(entry.get("created")),
         modified=_parse_iso(entry.get("modified")) or mtime,
