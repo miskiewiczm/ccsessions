@@ -681,8 +681,10 @@ class CCSessionsApp(App):
         table = self.query_one("#projects-table", DataTable)
         pal = self._palette()
         self._update_filter_titles()
-        prev_path = (
-            self._vprojects[table.cursor_row].project_path
+        # encoded_dir, not project_path: a Claude worktree's sessions carry the
+        # main checkout's cwd, so two projects can share the same path
+        prev_dir = (
+            self._vprojects[table.cursor_row].encoded_dir
             if 0 <= table.cursor_row < len(self._vprojects)
             else None
         )
@@ -712,13 +714,13 @@ class CCSessionsApp(App):
             table.add_row(live, name, count, tokens)
         if table.row_count:
             row = 0
-            if prev_path is not None:
+            if prev_dir is not None:
                 for i, p in enumerate(self._vprojects):
-                    if p.project_path == prev_path:
+                    if p.encoded_dir == prev_dir:
                         row = i
                         break
             table.move_cursor(row=row)
-            if prev_path is not None and self._vprojects[row].project_path == prev_path:
+            if self._vprojects[row].encoded_dir == prev_dir:
                 self._keep_scroll(table, scroll_y, moved=row != prev_row)
             self._show_sessions_for(row)
         else:

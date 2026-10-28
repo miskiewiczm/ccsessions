@@ -254,3 +254,29 @@ async def _exercise_refresh_keeps_scroll() -> None:
 
 def test_refresh_keeps_selection_and_scroll():
     asyncio.run(_exercise_refresh_keeps_scroll())
+
+
+async def _exercise_refresh_keeps_project_sharing_path() -> None:
+    # a Claude worktree's sessions carry the main checkout's cwd: two projects, one path
+    projects = _fake_projects()
+    projects[1].project_path = projects[0].project_path
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            from textual.widgets import DataTable
+
+            pt = app.query_one("#projects-table", DataTable)
+            pt.move_cursor(row=1)
+            await pilot.pause()
+            selected = app._current_project()
+
+            app._tick_refresh()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert app._current_project() is selected
+
+
+def test_refresh_keeps_project_sharing_a_path():
+    asyncio.run(_exercise_refresh_keeps_project_sharing_path())
