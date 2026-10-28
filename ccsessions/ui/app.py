@@ -686,6 +686,7 @@ class CCSessionsApp(App):
             if 0 <= table.cursor_row < len(self._vprojects)
             else None
         )
+        prev_row, scroll_y = table.cursor_row, table.scroll_y
         table.clear()
         self._vprojects = self._visible_projects()
         for p in self._vprojects:
@@ -717,6 +718,8 @@ class CCSessionsApp(App):
                         row = i
                         break
             table.move_cursor(row=row)
+            if prev_path is not None and self._vprojects[row].project_path == prev_path:
+                self._keep_scroll(table, scroll_y, moved=row != prev_row)
             self._show_sessions_for(row)
         else:
             self._update_sessions_table([])
@@ -761,6 +764,7 @@ class CCSessionsApp(App):
             if 0 <= table.cursor_row < len(self._vsessions)
             else None
         )
+        prev_row, scroll_y = table.cursor_row, table.scroll_y
         table.clear()
         self._vsessions = sessions
         for s in sessions:
@@ -796,7 +800,22 @@ class CCSessionsApp(App):
             for row, s in enumerate(sessions):
                 if s.session_id == prev_sid:
                     table.move_cursor(row=row)
+                    self._keep_scroll(table, scroll_y, moved=row != prev_row)
                     break
+
+    def _keep_scroll(self, table: DataTable, scroll_y: float, moved: bool) -> None:
+        """clear() snaps a table back to the top: put the view back where the
+        user left it, so a rebuild (auto-refresh) never scrolls the list."""
+
+        def restore() -> None:
+            table.scroll_to(y=scroll_y, animate=False, immediate=True)
+            if moved:  # the selection was re-sorted: bring it into view
+                table.move_cursor(row=table.cursor_row)
+
+        # now, so no frame paints at the top, and again once Textual has run its
+        # queued scroll-to-cursor
+        table.scroll_to(y=scroll_y, animate=False, immediate=True)
+        table.call_after_refresh(restore)
 
     def _update_preview(self, session: Session | None, force: bool = False) -> None:
         # skip re-rendering (and re-reading the transcript) when nothing changed,

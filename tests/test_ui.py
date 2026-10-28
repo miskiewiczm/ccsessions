@@ -216,3 +216,41 @@ async def _exercise_watch(tmp_path: Path) -> None:
 
 def test_watch_toggle_creates_and_keeps_document(tmp_path):
     asyncio.run(_exercise_watch(tmp_path))
+
+
+async def _exercise_refresh_keeps_scroll() -> None:
+    projects = _fake_projects()
+    projects[0].sessions = [
+        Session(
+            session_id=f"s{i}",
+            jsonl_path=Path(f"/nonexistent/s{i}.jsonl"),
+            project_path="/tmp/x",
+            first_prompt=f"task {i}",
+        )
+        for i in range(60)
+    ]
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: projects):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            from textual.widgets import DataTable
+
+            st = app.query_one("#sessions-table", DataTable)
+            await pilot.press("tab")  # sessions pane
+            for _ in range(40):
+                await pilot.press("j")
+            st.scroll_to(y=st.scroll_y - 3, animate=False, immediate=True)
+            await pilot.pause()
+            row, scroll_y = st.cursor_row, st.scroll_y
+            assert scroll_y > 0
+
+            app._tick_refresh()  # auto-refresh rescan
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert st.cursor_row == row
+            assert st.scroll_y == scroll_y
+
+
+def test_refresh_keeps_selection_and_scroll():
+    asyncio.run(_exercise_refresh_keeps_scroll())
