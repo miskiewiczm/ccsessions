@@ -311,3 +311,34 @@ async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
 
 def test_square_brackets_in_titles_survive(tmp_path):
     asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
+
+
+async def _exercise_focused_pane_border() -> None:
+    from textual.color import Color
+
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: {}),
+        patch.object(appmod, "save_settings", lambda _s: None),
+    ):
+        app = CCSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "monokai"
+            await pilot.pause()
+            accent = Color.parse(app.current_theme.accent)
+            primary = Color.parse(app.current_theme.primary)
+            projects = app.query_one("#projects-table")
+            sessions = app.query_one("#sessions-table")
+            assert projects.styles.border_top[1] == accent
+            assert sessions.styles.border_top[1] == primary
+
+            # the accent border follows the focus
+            await pilot.press("tab")
+            await pilot.pause()
+            assert projects.styles.border_top[1] == primary
+            assert sessions.styles.border_top[1] == accent
+
+
+def test_focused_pane_border_uses_accent():
+    asyncio.run(_exercise_focused_pane_border())
