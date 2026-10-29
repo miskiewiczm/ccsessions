@@ -361,8 +361,10 @@ class CCSessionsApp(App):
         border-title-color: $text-muted;
     }
 
-    /* pane holding focus — class toggled in _highlight_focused_pane() */
-    .active {
+    /* pane holding focus — class toggled in _highlight_focused_pane();
+       ids plus the class, or the id rule above wins and it never shows */
+    #projects-table.active, #sessions-table.active,
+    #info-scroll.active, #conv-scroll.active {
         border: round $accent;
         border-title-color: $accent;
         border-title-style: bold;
