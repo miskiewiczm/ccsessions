@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import ccsessions.ui.app as appmod
+from ccsessions.core import settings as settings_mod
 from ccsessions.core.models import Project, Session
 from textual.widgets import Static
 
@@ -311,3 +312,113 @@ async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
 
 def test_square_brackets_in_titles_survive(tmp_path):
     asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
+
+
+async def _exercise_drag_splitter(tmp_path: Path) -> None:
+    settings_path = tmp_path / "settings.json"
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
+        patch.object(appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)),
+    ):
+        # built inside the patch: __init__ reads the saved layout
+        app = CCSessionsApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            group = app.query_one("#group")
+            assert group.region.width == 80
+
+            # wide: dragging the main bar to column 50 narrows the left column
+            await pilot.mouse_down("#split-main")
+            await pilot.hover(None, offset=(50, 10))
+            await pilot.mouse_up(None, offset=(50, 10))
+            await pilot.pause()
+            assert group.region.width == 50
+            saved = appmod.load_settings()["layout"]
+            assert saved["wide"] == {"group": {"width": 31.25}}
+
+            # narrow: the wide width is dropped, the CSS layout takes over
+            await pilot.resize_terminal(120, 40)
+            await pilot.pause()
+            assert group.region.width == 120
+
+            # back to wide: the dragged width comes back
+            await pilot.resize_terminal(160, 40)
+            await pilot.pause()
+            assert group.region.width == 50
+
+            # double-click puts the default 50% back and forgets the drag
+            await pilot.double_click("#split-main")
+            await pilot.pause()
+            assert group.region.width == 80
+            assert appmod.load_settings()["layout"]["wide"] == {}
+
+            # a click without moving must not shift the pane by a rounding cell
+            sessions = app.query_one("#sessions-table")
+            before = sessions.region.height
+            await pilot.click("#split-sub")
+            await pilot.pause()
+            assert sessions.region.height == before
+
+            # drag, then two double-clicks in a row: each one resets
+            await pilot.mouse_down("#split-sub")
+            await pilot.hover(None, offset=(10, 30))
+            await pilot.mouse_up(None, offset=(10, 30))
+            await pilot.pause()
+            assert sessions.region.height != before
+            for _ in range(2):
+                await pilot.double_click("#split-sub")
+                await pilot.pause()
+                assert sessions.region.height == before
+
+
+def test_drag_splitter_resizes_and_remembers(tmp_path):
+    asyncio.run(_exercise_drag_splitter(tmp_path))
+
+
+def test_load_layout_ignores_malformed_entries():
+    layout = appmod._load_layout(
+        {"wide": {"group": {"width": 40}, "conv-scroll": {"width": 10}}, "narrow": {"group": {"height": "x"}}}
+    )
+    assert layout == {"wide": {"group": {"width": 40.0}}, "narrow": {}}
+    assert appmod._load_layout(None) == {"wide": {}, "narrow": {}}
+
+
+async def _exercise_reset_layout(tmp_path: Path) -> None:
+    settings_path = tmp_path / "settings.json"
+    # sizes dragged earlier in both layouts
+    settings_mod.save_settings(
+        {"theme": "nord", "layout": {"wide": {"group": {"width": 30}}, "narrow": {"group": {"height": 70}}}},
+        settings_path,
+    )
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: settings_mod.load_settings(settings_path)),
+        patch.object(appmod, "save_settings", lambda s: settings_mod.save_settings(s, settings_path)),
+    ):
+        # built inside the patch: __init__ reads the saved layout
+        app = CCSessionsApp()
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            group = app.query_one("#group")
+            assert group.region.width == 48
+
+            commands = [c.title for c in app.get_system_commands(app.screen)]
+            assert "Reset layout" in commands
+            app.action_reset_layout()
+            await pilot.pause()
+            assert group.region.width == 80
+            saved = settings_mod.load_settings(settings_path)
+            assert saved["layout"] == {"wide": {}, "narrow": {}}
+            assert saved["theme"] == "nord"
+
+            # the narrow layout is back to its default too (50% of 37 rows)
+            await pilot.resize_terminal(120, 40)
+            await pilot.pause()
+            assert group.region.height == 18
+
+
+def test_reset_layout_command(tmp_path):
+    asyncio.run(_exercise_reset_layout(tmp_path))
