@@ -164,12 +164,14 @@ class Splitter(Widget):
     """
 
     DEFAULT_CSS = """
+    /* hidden until used: the cell stays in the layout, only the line fades */
     Splitter {
         background: $surface;
-        color: $panel;
+        color: $accent;
+        text-opacity: 0%;
     }
     Splitter:hover, Splitter.-dragging {
-        color: $accent;
+        text-opacity: 100%;
     }
     """
 
