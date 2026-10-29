@@ -165,10 +165,11 @@ class Splitter(Widget):
 
     DEFAULT_CSS = """
     Splitter {
-        background: $panel;
+        background: $surface;
+        color: $panel;
     }
     Splitter:hover, Splitter.-dragging {
-        background: $accent;
+        color: $accent;
     }
     """
 
@@ -184,8 +185,10 @@ class Splitter(Widget):
             self.percent = percent
 
     def render(self) -> str:
-        # a bare Widget renders its own name — the bar is colour only
-        return ""
+        # the axis flips with the wide/narrow layout
+        if self.parent.styles.layout.name == "horizontal":
+            return "\n".join("│" * self.size.height)
+        return "─" * self.size.width
 
     def _pane(self) -> Widget:
         siblings = self.parent.children
