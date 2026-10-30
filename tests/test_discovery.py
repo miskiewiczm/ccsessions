@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from ccsessions.core.cache import TokenCache
 from ccsessions.core.discovery import discover_projects
@@ -107,6 +108,9 @@ def test_project_index_metadata(fake_base):
     proj2 = fake_base / "-tmp-newer"
     proj2.mkdir()
     write_transcript(proj2 / f"{SID}.jsonl", cwd="/tmp/newer")
+    # both files are written within one clock tick; make the second really newer
+    older = (fake_base / "-tmp-fake-project" / f"{SID}.jsonl").stat().st_mtime
+    os.utime(proj2 / f"{SID}.jsonl", (older + 10, older + 10))
     (fake_base / "-tmp-fake-project" / "sessions-index.json").write_text(
         json.dumps({"version": 1, "originalPath": "/tmp/fake-project", "entries": []}),
         encoding="utf-8",
