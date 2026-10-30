@@ -37,6 +37,17 @@ def extract_cwd(jsonl_path: Path, max_lines: int = 20) -> str:
     return ""
 
 
+def _prompt_text(content: object) -> str:
+    """Text the user typed, or "" for tool results and slash-command wrappers."""
+    if isinstance(content, list):
+        content = " ".join(
+            c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"
+        )
+    if not isinstance(content, str) or content.lstrip().startswith("<"):
+        return ""
+    return content.strip()
+
+
 def compute_token_stats(jsonl_path: Path) -> TokenStats:
     stats = TokenStats()
     try:
@@ -54,11 +65,18 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                     if isinstance(title, str):
                         stats.custom_title = title.strip()
                     continue
+                if isinstance(obj, dict) and obj.get("type") == "ai-title":
+                    title = obj.get("aiTitle")
+                    if isinstance(title, str):
+                        stats.ai_title = title.strip()
+                    continue
                 msg = obj.get("message") if isinstance(obj, dict) else None
                 if not isinstance(msg, dict):
                     continue
                 if obj.get("type") in ("user", "assistant") and not obj.get("isMeta"):
                     stats.messages += 1
+                if obj.get("type") == "user" and not obj.get("isMeta") and not stats.first_prompt:
+                    stats.first_prompt = _prompt_text(msg.get("content"))
                 usage = msg.get("usage")
                 if not isinstance(usage, dict):
                     continue

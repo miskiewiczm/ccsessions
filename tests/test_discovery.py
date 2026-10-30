@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from ccsessions.core.cache import TokenCache
 from ccsessions.core.discovery import discover_projects
@@ -30,6 +31,19 @@ def test_jsonl_without_index(fake_base):
     assert projects[0].project_path == "/tmp/fake-project"
     assert s.message_count == 4  # counted from the JSONL
     assert s.tokens.total == 30
+
+
+def test_generated_title_and_first_prompt_without_index(fake_base, tmp_path):
+    proj = fake_base / "-tmp-fake-project"
+    (proj / "sessions-index.json").unlink()
+    with (proj / f"{SID}.jsonl").open("a", encoding="utf-8") as f:
+        for title in ("early title", "final title"):
+            f.write(json.dumps({"type": "ai-title", "aiTitle": title, "sessionId": SID}) + "\n")
+    cache = TokenCache(tmp_path / "cache.json")
+    for _ in range(2):  # second pass is served from the cache
+        s = discover_projects(base=fake_base, cache=cache)[0].sessions[0]
+        assert s.display_title == "final title"
+        assert s.first_prompt == "question 0"
 
 
 def test_rename_title_wins_and_last_one_counts(fake_base, tmp_path):
@@ -94,6 +108,9 @@ def test_project_index_metadata(fake_base):
     proj2 = fake_base / "-tmp-newer"
     proj2.mkdir()
     write_transcript(proj2 / f"{SID}.jsonl", cwd="/tmp/newer")
+    # both files are written within one clock tick; make the second really newer
+    older = (fake_base / "-tmp-fake-project" / f"{SID}.jsonl").stat().st_mtime
+    os.utime(proj2 / f"{SID}.jsonl", (older + 10, older + 10))
     (fake_base / "-tmp-fake-project" / "sessions-index.json").write_text(
         json.dumps({"version": 1, "originalPath": "/tmp/fake-project", "entries": []}),
         encoding="utf-8",
