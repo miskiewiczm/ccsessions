@@ -52,6 +52,8 @@ class TokenCache:
                 messages=int(entry["messages"]),
                 # KeyError on entries cached before this field existed forces a re-read
                 custom_title=str(entry["custom_title"]),
+                ai_title=str(entry["ai_title"]),
+                first_prompt=str(entry["first_prompt"]),
             )
         except (KeyError, TypeError, ValueError):
             return None
@@ -66,6 +68,8 @@ class TokenCache:
             "cache_write": stats.cache_write,
             "messages": stats.messages,
             "custom_title": stats.custom_title,
+            "ai_title": stats.ai_title,
+            "first_prompt": stats.first_prompt,
         }
         self._dirty = True
 

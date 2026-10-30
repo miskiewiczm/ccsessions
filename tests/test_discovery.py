@@ -32,6 +32,19 @@ def test_jsonl_without_index(fake_base):
     assert s.tokens.total == 30
 
 
+def test_generated_title_and_first_prompt_without_index(fake_base, tmp_path):
+    proj = fake_base / "-tmp-fake-project"
+    (proj / "sessions-index.json").unlink()
+    with (proj / f"{SID}.jsonl").open("a", encoding="utf-8") as f:
+        for title in ("early title", "final title"):
+            f.write(json.dumps({"type": "ai-title", "aiTitle": title, "sessionId": SID}) + "\n")
+    cache = TokenCache(tmp_path / "cache.json")
+    for _ in range(2):  # second pass is served from the cache
+        s = discover_projects(base=fake_base, cache=cache)[0].sessions[0]
+        assert s.display_title == "final title"
+        assert s.first_prompt == "question 0"
+
+
 def test_rename_title_wins_and_last_one_counts(fake_base, tmp_path):
     jsonl = fake_base / "-tmp-fake-project" / f"{SID}.jsonl"
     with jsonl.open("a", encoding="utf-8") as f:
