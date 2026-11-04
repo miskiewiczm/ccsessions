@@ -117,6 +117,21 @@ def fmt_date(dt: datetime | None) -> str:
         return "-"
 
 
+def number_color(warning: str | None) -> str:
+    """Theme color for counts and totals, which are data rather than alarms.
+
+    They have always been the warning yellow, but `warning` names a *role*:
+    the light ANSI theme maps it to bright red, which turns every count into
+    an alarm and, at contrast 2.84 against a light terminal background, is
+    also the least legible color we draw. ANSI themes therefore keep the
+    terminal's own yellow, which carries on light and dark backgrounds alike;
+    RGB themes define a yellow of their own and are left alone.
+    """
+    if not warning or warning.startswith("ansi"):
+        return "ansi_yellow"
+    return warning
+
+
 def rich_color(theme_color: str | None, fallback: str) -> str:
     """Translate a Textual theme color into a Rich-parsable style color.
 
@@ -544,8 +559,8 @@ class CCSessionsApp(App):
             RichTheme(
                 {
                     "markdown.code": f"bold {pal['secondary']}",
-                    "markdown.item.bullet": f"bold {pal['warning']}",
-                    "markdown.item.number": f"bold {pal['warning']}",
+                    "markdown.item.bullet": f"bold {pal['number']}",
+                    "markdown.item.number": f"bold {pal['number']}",
                 }
             )
         )
@@ -637,6 +652,7 @@ class CCSessionsApp(App):
         return {
             "success": rich_color(th.success, "green"),
             "warning": rich_color(th.warning, "yellow"),
+            "number": rich_color(number_color(th.warning), "yellow"),
             "error": rich_color(th.error, "red"),
             "primary": rich_color(th.primary, "cyan"),
             "secondary": rich_color(th.secondary, "magenta"),
@@ -710,7 +726,7 @@ class CCSessionsApp(App):
                 if not archived
                 else f"{len(active)}+{len(archived)}"
             )
-            count = Text(sess_label, style=pal["warning"], justify="right")
+            count = Text(sess_label, style=pal["number"], justify="right")
             tok_style = pal["muted"] if all_archived else pal["secondary"]
             tokens = Text(fmt_tokens(p.total_tokens), style=tok_style, justify="right")
             table.add_row(live, name, count, tokens)
@@ -753,7 +769,7 @@ class CCSessionsApp(App):
         if state == "live":
             return Text(EYE_ON, style=pal["success"])
         if state == "idle":
-            return Text(EYE_ON, style=pal["warning"])
+            return Text(EYE_ON, style=pal["number"])
         if state == "stale":
             # blue rather than grey: a muted glyph vanishes into the cursor bar
             return Text(EYE_OFF, style=pal["primary"])
@@ -793,7 +809,7 @@ class CCSessionsApp(App):
             else:
                 desc_style = pal["text"]
             desc = Text(desc_raw, style=desc_style)
-            count_style = pal["muted"] if inactive else pal["warning"]
+            count_style = pal["muted"] if inactive else pal["number"]
             count = Text(str(s.message_count), style=count_style, justify="right")
             tok_style = pal["muted"] if inactive else pal["secondary"]
             tok_text = "-" if s.is_missing else fmt_tokens(s.tokens)
@@ -840,6 +856,7 @@ class CCSessionsApp(App):
         th = self.current_theme
         c_success = th.success or "ansi_green"
         c_warning = th.warning or "ansi_yellow"
+        c_number = number_color(th.warning)
         c_error = th.error or "ansi_red"
         c_primary = th.primary or "ansi_cyan"
         c_secondary = th.secondary or "ansi_magenta"
@@ -854,8 +871,9 @@ class CCSessionsApp(App):
         elif session.is_live:
             state = f"[{c_success}]● live[/]"
         else:
-            state = f"[{c_warning}]○ inactive[/]"
-        sidechain = f"  [{c_warning}](sidechain)[/]" if session.is_sidechain else ""
+            # a stopped session is a neutral state, not something to warn about
+            state = f"[{c_muted}]○ inactive[/]"
+        sidechain = f"  [{c_muted}](sidechain)[/]" if session.is_sidechain else ""
         branch = (
             f"  [{c_secondary}]⎇ {escape(session.git_branch)}[/]"
             if session.git_branch
@@ -895,7 +913,7 @@ class CCSessionsApp(App):
         if watch_state:
             label = {
                 "live": f"[{c_success}]◉ updating[/]",
-                "idle": f"[{c_warning}]◉ following (session stopped)[/]",
+                "idle": f"[{c_number}]◉ following (session stopped)[/]",
                 "stale": f"[{c_muted}]◌ file only — not updating[/]",
             }[watch_state]
             watch_line = (
@@ -915,14 +933,14 @@ class CCSessionsApp(App):
             f"{'' if cwd_exists else f' [{c_warning}](does not exist)[/]'}\n"
             f"[{c_muted}]Created:[/]  [{c_text}]{fmt_date(session.created)}[/]\n"
             f"[{c_muted}]Modified:[/] [{c_text}]{fmt_date(session.modified)}[/]\n"
-            f"[{c_muted}]Messages:[/] [{c_warning}]{session.message_count}[/]\n"
+            f"[{c_muted}]Messages:[/] [{c_number}]{session.message_count}[/]\n"
             f"\n"
             f"[bold]Tokens[/bold]\n"
             f"  [{c_success}]input:[/]       [{c_text}]{t.input:>12,}[/]\n"
             f"  [{c_secondary}]output:[/]      [{c_text}]{t.output:>12,}[/]\n"
             f"  [{c_primary}]cache read:[/]  [{c_text}]{t.cache_read:>12,}[/]\n"
             f"  [{c_accent}]cache write:[/] [{c_text}]{t.cache_write:>12,}[/]\n"
-            f"  [bold]Σ total:[/]     [bold {c_warning}]{t.total:>12,}[/]\n"
+            f"  [bold]Σ total:[/]     [bold {c_number}]{t.total:>12,}[/]\n"
             f"{resume_line}"
             f"{watch_line}"
             f"\n"

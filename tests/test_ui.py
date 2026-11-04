@@ -311,3 +311,30 @@ async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
 
 def test_square_brackets_in_titles_survive(tmp_path):
     asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
+
+
+def test_counts_keep_their_yellow_when_the_theme_reddens_warnings():
+    """`warning` is a role: ansi-light maps it to bright red, counts are data."""
+    from ccsessions.ui.app import number_color
+
+    assert number_color("ansi_bright_red") == "ansi_yellow"  # the light ANSI theme
+    assert number_color("ansi_yellow") == "ansi_yellow"  # the dark one, unchanged
+    assert number_color("#ebcb8b") == "#ebcb8b"  # RGB themes bring their own
+    assert number_color(None) == "ansi_yellow"
+
+
+async def _exercise_light_theme_palette() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            for theme, warning in (("ansi-light", "bright_red"), ("ansi-dark", "yellow")):
+                app.theme = theme
+                await pilot.pause()
+                pal = app._palette()
+                assert pal["warning"] == warning  # warnings follow the theme
+                assert pal["number"] == "yellow"  # counts do not turn red
+
+
+def test_counts_stay_yellow_across_ansi_themes():
+    asyncio.run(_exercise_light_theme_palette())
