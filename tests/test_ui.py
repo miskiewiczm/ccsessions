@@ -338,3 +338,21 @@ async def _exercise_light_theme_palette() -> None:
 
 def test_counts_stay_yellow_across_ansi_themes():
     asyncio.run(_exercise_light_theme_palette())
+
+
+async def _exercise_light_theme_class() -> None:
+    """CSS needs to know a light theme is on; -light marks it like -narrow does."""
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "ansi-light"
+            await pilot.pause()
+            assert app.screen.has_class("-light")
+            app.theme = "ansi-dark"
+            await pilot.pause()
+            assert not app.screen.has_class("-light")
+
+
+def test_light_theme_marks_the_screen():
+    asyncio.run(_exercise_light_theme_class())

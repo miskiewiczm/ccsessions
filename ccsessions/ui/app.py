@@ -422,6 +422,28 @@ class CCSessionsApp(App):
         text-style: bold;
     }
 
+    /* A light terminal palette has no colour lighter than its own background —
+       every ANSI slot has to stay legible on light paper — so the grey bar
+       reads as a hole punched in the page. Blue reads as a selection instead:
+       it stands out less (3.82 against the page versus 6.06) and still carries
+       its text. Dark themes keep the grey, where the accents are light and
+       white on them measured 1.51. */
+    Screen.-light DataTable:focus > .datatable--cursor {
+        background: $primary;
+    }
+
+    /* Textual paints the scrollbar trough with ansi_white, which in a light
+       palette is a mid grey — darker than the page it runs down. No ANSI slot
+       is lighter than a light background, so the trough cannot be toned down,
+       only dropped: the thumb alone still shows the position. */
+    DataTable, #info-scroll, #conv-scroll {
+        scrollbar-background: transparent;
+        scrollbar-background-hover: transparent;
+        scrollbar-background-active: transparent;
+        scrollbar-corner-color: transparent;
+        scrollbar-size-horizontal: 1;
+    }
+
     /* column labels are chrome, not data — cyan/nord8 reads lighter than the
        pane-title blue, so headers stay distinct from the focus indicators.
        The underline spans the cell padding too, so it reads as a rule under
@@ -511,6 +533,10 @@ class CCSessionsApp(App):
         yield Static("", id="status", markup=False)
         yield Footer()
 
+    def _apply_theme_class(self) -> None:
+        """Mark light themes for the CSS, the way -wide/-narrow mark the layout."""
+        self.screen.set_class(not self.current_theme.dark, "-light")
+
     def on_resize(self, event: events.Resize) -> None:
         wide = event.size.width >= self.WIDE_BREAKPOINT
         self.screen.set_class(wide, "-wide")
@@ -526,6 +552,7 @@ class CCSessionsApp(App):
         except Exception:
             self.theme = "ansi-dark"  # unknown theme name — fall back
         self._apply_markdown_styles()
+        self._apply_theme_class()
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_columns(" ", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
@@ -572,6 +599,7 @@ class CCSessionsApp(App):
         settings["theme"] = self.theme
         save_settings(settings)
         self._apply_markdown_styles()
+        self._apply_theme_class()
         # DataTable caches rendered rows, so a theme switch leaves stale
         # colors behind — rebuild both tables, keeping the cursor in place
         ptable = self.query_one("#projects-table", DataTable)
