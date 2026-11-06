@@ -197,7 +197,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             await pilot.press("tab")  # sessions pane
             assert app._watch_state(session) == ""
 
-            await pilot.press("w")  # start following
+            await pilot.press("l")  # start following
             await pilot.pause()
             doc = tmp_path / f"_session_{session.session_id}.md"
             assert doc.is_file()
@@ -208,7 +208,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             details = str(app.query_one("#preview-content", Static).render())
             assert "Live document" in details
 
-            await pilot.press("w")  # stop following
+            await pilot.press("l")  # stop following
             await pilot.pause()
             assert doc.is_file()  # the file stays behind
             assert app._watch_state(session) == "stale"

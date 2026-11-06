@@ -19,6 +19,7 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
+from textual.widgets._footer import FooterKey
 
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
@@ -44,8 +45,50 @@ from ..core.watch import LiveDoc, WatchError, gitignore_hint, has_live_doc, live
 # theme); any name from `pygments.styles.get_all_styles()` works
 CODE_THEME_OVERRIDE = os.environ.get("CCSESSIONS_CODE_THEME", "")
 
-# explicit Textual theme (empty = last theme saved from Ctrl+P, or ansi-dark)
+# explicit Textual theme (empty = last theme saved from the palette (p), or ansi-dark)
 APP_THEME_OVERRIDE = os.environ.get("CCSESSIONS_THEME", "")
+
+
+_default_footer_key_render = FooterKey.render
+
+
+def _footer_key_render(self: FooterKey) -> Text:
+    """Lowercase footer label with its key letter coloured, keys joined by
+    " - " (quit - resume - ...).
+
+    Keys absent from their label (/, ctrl+r ...) stay in
+    front of it, as Textual draws them.
+    """
+    if not self.description:
+        return _default_footer_key_render(self)
+    key = self.key_display
+    key_style = self.get_component_rich_style("footer-key--key")
+    description_style = self.get_component_rich_style("footer-key--description")
+    padding = self.get_component_styles("footer-key--description").padding
+    description = self.description.lower()
+    label = Text(
+        " " * padding.left + description + " " * padding.right,
+        style=description_style,
+    )
+    index = description.find(key.lower()) if len(key) == 1 else -1
+    if index >= 0:
+        start = padding.left + index
+        label.stylize(key_style, start, start + 1)
+    else:
+        label = Text.assemble((key + " ", key_style), label)
+    if (
+        self.parent is not None
+        and self.parent.children.index(self) > 0
+        and not self.has_class("-command-palette")  # docked apart, on the right
+    ):
+        label = Text.assemble(("- ", description_style), label)
+    label.stylize_before(self.rich_style)
+    return label
+
+
+# Footer builds FooterKey itself with no hook, so the render is
+# patched; recheck when upgrading Textual (written against 8.2.8)
+FooterKey.render = _footer_key_render
 
 
 def _eye_glyphs() -> tuple[str, str]:
@@ -343,6 +386,8 @@ class ExportScreen(ModalScreen[tuple[str, str] | None]):
 class CCSessionsApp(App):
     """Four panes (projects / sessions / details / conversation) + resume."""
 
+    COMMAND_PALETTE_BINDING = "p"
+
     # terminal width at which the layout switches to the "wide" variant
     WIDE_BREAKPOINT = 140
 
@@ -434,7 +479,7 @@ class CCSessionsApp(App):
         height: 1;
         background: $boost;
         color: $text-muted;
-        padding: 0 1;
+        padding: 0 1 0 0;  /* left edge in line with the footer keys */
     }
     """
 
@@ -447,9 +492,9 @@ class CCSessionsApp(App):
         Binding("d", "delete", "Delete"),
         Binding("n", "rename", "Rename"),
         Binding("e", "export", "Export"),
-        Binding("w", "watch", "Live doc"),
+        Binding("l", "watch", "Live doc"),
         Binding("/", "filter", "Filter"),
-        Binding("ctrl+r", "refresh", "Refresh"),
+        Binding("ctrl+r", "refresh", "Refresh", show=False),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
         Binding("j", "cursor_down", "Down", show=False),
@@ -527,7 +572,7 @@ class CCSessionsApp(App):
             self.set_interval(interval, self._tick_refresh)
         # live documents need a tighter loop than the session list
         self.set_interval(2.0, self._tick_watches)
-        # re-render the details pane when the theme changes (Ctrl+P)
+        # re-render the details pane when the theme changes (palette, p)
         self.watch(self, "theme", self._on_theme_changed, init=False)
 
     def _apply_markdown_styles(self) -> None:
@@ -552,7 +597,7 @@ class CCSessionsApp(App):
         self._md_styles_pushed = True
 
     def _on_theme_changed(self) -> None:
-        # remember the choice (Ctrl+P) for the next run
+        # remember the choice (palette, p) for the next run
         settings = load_settings()
         settings["theme"] = self.theme
         save_settings(settings)
@@ -609,11 +654,10 @@ class CCSessionsApp(App):
             f" (+{proj_archived} archived)" if proj_archived else ""
         )
         self._set_status(
-            f"{proj_label}  ·  {active} sessions"
+            f"{proj_label} - {active} sessions"
             + (f" ({', '.join(extras)})" if extras else "")
-            + f"  ·  {live_count} live"
-            + f"  ·  scan {elapsed:.1f}s"
-            + "  ·  r=resume  c=copy  a=archive  d=delete  q=quit"
+            + f" - {live_count} live"
+            + f" - scan {elapsed:.1f}s"
         )
 
     def _muted_hex(self) -> str | None:
@@ -1146,7 +1190,7 @@ class CCSessionsApp(App):
             return
         self._watches[s.session_id] = doc
         hint = gitignore_hint(s)
-        self._set_status(f"Live doc → {doc.out_path}" + (f"  ·  {hint}" if hint else ""))
+        self._set_status(f"Live doc → {doc.out_path}" + (f" - {hint}" if hint else ""))
         self._refresh_watch_ui()
 
     def _refresh_watch_ui(self) -> None:

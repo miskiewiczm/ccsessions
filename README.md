@@ -28,7 +28,7 @@ A fast terminal UI for browsing, previewing, resuming and managing
 - **Export** — write a whole session to Markdown (YAML front matter with
   session metadata, then the conversation — ready for Quarto/Pandoc) or copy
   the raw JSONL transcript verbatim; existing files are never overwritten
-- **Live document** — `w` keeps `_session_<id>.md` in the project directory in
+- **Live document** — `l` keeps `_session_<id>.md` in the project directory in
   sync with a running session, so an external renderer (`quarto preview`,
   VS Code, Marked, Obsidian) can display the conversation **with LaTeX
   rendered** while you work in the terminal. Only appended bytes are read, so
@@ -75,7 +75,7 @@ ccsessions
 | `d` | Delete session / project (with confirmation) |
 | `n` | Rename project (set a display alias) |
 | `e` | Export the session (Markdown or raw JSONL) |
-| `w` | Follow the session in a live Markdown document |
+| `l` | Follow the session in a live Markdown document |
 | `/` | Filter the focused list (projects or sessions) |
 | `Ctrl+R` | Rescan `~/.claude` now (a rescan also runs automatically) |
 | `q` | Quit |
@@ -85,7 +85,7 @@ the whole **project** when the Projects pane is focused.
 
 ### Live documents
 
-`w` toggles a live Markdown document for the selected session, written to
+`l` toggles a live Markdown document for the selected session, written to
 `_session_<session-id>.md` in that session's project directory and updated
 every couple of seconds while ccsessions runs. Point any live-reloading
 Markdown renderer at it — `quarto preview _session_<id>.md` renders LaTeX
@@ -120,7 +120,7 @@ by that directory, so naming one of them leaves the other rows alone.
 
 ### Configuration
 
-- **Theme** — switch at runtime with Ctrl+P → "Change theme"; the choice is
+- **Theme** — switch at runtime with `p` → "Change theme"; the choice is
   remembered across runs (`~/.config/ccsessions/settings.json`). The
   `CCSESSIONS_THEME` env var overrides it. The default `ansi-dark` follows
   your terminal's palette and keeps terminal transparency; RGB themes
@@ -128,7 +128,7 @@ by that directory, so naming one of them leaves the other rows alone.
 - **Code blocks** — fenced code follows the app theme with a matching
   pygments style. Set `CCSESSIONS_CODE_THEME` to pin a specific one
   (any name from `pygments.styles.get_all_styles()`).
-- `CCSESSIONS_LIVE_DIR` — where live documents (`w`) are written; defaults to
+- `CCSESSIONS_LIVE_DIR` — where live documents (`l`) are written; defaults to
   the session's own project directory. Point it at a plain directory when your
   projects are Quarto projects.
 - `CCSESSIONS_REFRESH_SECONDS` — auto-refresh interval (default `10`, `0`
