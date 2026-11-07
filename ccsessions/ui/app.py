@@ -479,12 +479,13 @@ class CCSessionsApp(App):
     /* Zebra striping is a hint on a dark page and a set of bands on a light
        one: measured off a render, the rows alternate #E3E6EB and #F1F2F5,
        which the eye reads as stripes across the panel. Light themes get one
-       even surface instead, a shade above the page so the list still reads
-       as a sheet laid on it. */
+       even surface instead — the same $surface the Details and Conversation
+       panes sit on, so the four panes read as one sheet rather than two
+       darker rectangles beside two lighter ones. */
     Screen:light DataTable,
     Screen:light DataTable > .datatable--odd-row,
     Screen:light DataTable > .datatable--even-row {
-        background: $background;
+        background: $surface;
     }
 
     /* Textual tints a focused widget with 5% of the foreground. On a dark page

@@ -364,8 +364,9 @@ def test_nord_light_is_available_and_light():
     asyncio.run(_exercise_nord_light())
 
 
-async def _exercise_focus_leaves_light_tables_untinted() -> None:
-    """Textual tints a focused widget by 5% of the foreground — a stain on a light page."""
+async def _exercise_light_panes_share_one_background() -> None:
+    """Four panes, one sheet: no pane darker for holding focus or for being a table."""
+    from textual.containers import VerticalScroll
     from textual.widgets import DataTable
 
     app = CCSessionsApp()
@@ -375,12 +376,17 @@ async def _exercise_focus_leaves_light_tables_untinted() -> None:
             app.theme = "nord-light"
             await pilot.pause()
 
-            focused = app.query_one("#projects-table", DataTable)
-            other = app.query_one("#sessions-table", DataTable)
-            assert focused.has_focus and not other.has_focus
+            panes = {
+                "#projects-table": app.query_one("#projects-table", DataTable),
+                "#sessions-table": app.query_one("#sessions-table", DataTable),
+                "#info-scroll": app.query_one("#info-scroll", VerticalScroll),
+                "#conv-scroll": app.query_one("#conv-scroll", VerticalScroll),
+            }
             # the pane with focus is marked by its border, not by a greyer background
-            assert focused.background_colors[1] == other.background_colors[1]
+            assert panes["#projects-table"].has_focus
+            rendered = {name: w.background_colors[1] for name, w in panes.items()}
+            assert len(set(map(str, rendered.values()))) == 1, rendered
 
 
-def test_focus_leaves_light_tables_untinted():
-    asyncio.run(_exercise_focus_leaves_light_tables_untinted())
+def test_light_panes_share_one_background():
+    asyncio.run(_exercise_light_panes_share_one_background())
