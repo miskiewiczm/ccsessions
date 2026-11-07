@@ -468,14 +468,6 @@ class CCSessionsApp(App):
         scrollbar-size-vertical: 1;
     }
 
-    /* A horizontal bar cannot be thinner than the one row it occupies, so the
-       tables drop it entirely: it is a full-width rule under a list that is
-       only slightly too wide. Hiding it keeps the scrolling — arrow keys and
-       the wheel still reach the columns past the edge. */
-    DataTable {
-        scrollbar-size-horizontal: 0;
-    }
-
     /* Zebra striping is a hint on a dark page and a set of bands on a light
        one: measured off a render, the rows alternate #E3E6EB and #F1F2F5,
        which the eye reads as stripes across the panel. Light themes get one
@@ -535,9 +527,10 @@ class CCSessionsApp(App):
         text-style: bold underline;
     }
 
-    /* $boost is what lifts the header off a dark page; a themed light palette
-       resolves it to nothing, leaving a band a shade darker than the rows.
-       The underline already marks the header, so the band goes. */
+    /* $boost lifts the header off a dark page but resolves to nothing in a
+       themed light palette, which would leave the header flush with the rows.
+       The page tone stands a shade back from $surface instead, so the header
+       separates from the data the way $boost does in the dark. */
     Screen:light DataTable > .datatable--header {
         background: $background;
     }
