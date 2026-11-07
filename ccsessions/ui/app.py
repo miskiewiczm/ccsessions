@@ -466,7 +466,14 @@ class CCSessionsApp(App):
     Screen:light #info-scroll,
     Screen:light #conv-scroll {
         scrollbar-size-vertical: 1;
-        scrollbar-size-horizontal: 1;
+    }
+
+    /* A horizontal bar cannot be thinner than the one row it occupies, so the
+       tables drop it entirely: it is a full-width rule under a list that is
+       only slightly too wide. Hiding it keeps the scrolling — arrow keys and
+       the wheel still reach the columns past the edge. */
+    DataTable {
+        scrollbar-size-horizontal: 0;
     }
 
     /* Textual paints the trough with ansi_white and the thumb with
