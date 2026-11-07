@@ -1,6 +1,6 @@
 [project]
 name = "ccsessions-tui"
-version = "0.5.0"
+dynamic = ["version"]
 description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -46,6 +46,10 @@ testpaths = ["tests"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+# the number lives in the package, so a release touches one line
+path = "ccsessions/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ccsessions"]
