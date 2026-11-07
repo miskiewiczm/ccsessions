@@ -340,19 +340,25 @@ def test_counts_stay_yellow_across_ansi_themes():
     asyncio.run(_exercise_light_theme_palette())
 
 
-async def _exercise_light_theme_class() -> None:
-    """CSS needs to know a light theme is on; -light marks it like -narrow does."""
+async def _exercise_nord_light() -> None:
+    """Textual ships Nord dark only; the light one is ours and must resolve."""
     app = CCSessionsApp()
     with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
-            app.theme = "ansi-light"
+            app.theme = "nord-light"
             await pilot.pause()
-            assert app.screen.has_class("-light")
-            app.theme = "ansi-dark"
-            await pilot.pause()
-            assert not app.screen.has_class("-light")
+
+            th = app.current_theme
+            assert not th.dark  # :light in the stylesheet keys off this
+            assert not th.ansi  # and :ansi must not match, or the greys win
+            # a themed palette has a tone between page and ink for the cursor bar
+            assert th.panel and th.panel != th.background
+            # fenced code must not come out dark on a light page
+            from ccsessions.ui.app import code_theme_for
+
+            assert code_theme_for("nord-light", th.dark) == "default"
 
 
-def test_light_theme_marks_the_screen():
-    asyncio.run(_exercise_light_theme_class())
+def test_nord_light_is_available_and_light():
+    asyncio.run(_exercise_nord_light())

@@ -18,6 +18,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.screen import ModalScreen
+from textual.theme import Theme as TextualTheme
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from ..core.aliases import ProjectAliases
@@ -72,6 +73,26 @@ def _auto_refresh_seconds() -> float:
         return 10.0
     return max(0.0, value)
 
+# Textual ships Nord but only in the dark. Its own colours are tuned for a
+# dark page — #88C0D0 and #81A1C1 wash out on light paper — so the accents
+# here are Nord's darker readings, the ones a light Nord terminal uses, and
+# the three greys come from the palette's Snow Storm end.
+NORD_LIGHT = TextualTheme(
+    name="nord-light",
+    primary="#5374B3",
+    secondary="#287F92",
+    accent="#986393",
+    success="#4E8044",
+    warning="#AE7500",
+    error="#BE525A",
+    foreground="#3B4252",
+    background="#E5E9F0",
+    surface="#ECEFF4",
+    panel="#D8DEE9",
+    boost="#D8DEE9",
+    dark=False,
+)
+
 # app theme -> closest built-in pygments style for fenced code blocks
 PYGMENTS_FOR_THEME = {
     "nord": "nord",
@@ -84,6 +105,7 @@ PYGMENTS_FOR_THEME = {
     "solarized-light": "solarized-light",
     "textual-dark": "one-dark",
     "textual-light": "default",
+    "nord-light": "default",
     "flexoki": "one-dark",
 }
 
@@ -422,26 +444,41 @@ class CCSessionsApp(App):
         text-style: bold;
     }
 
-    /* A light terminal palette has no colour lighter than its own background —
-       every ANSI slot has to stay legible on light paper — so the grey bar
-       reads as a hole punched in the page. Blue reads as a selection instead:
-       it stands out less (3.82 against the page versus 6.06) and still carries
-       its text. Dark themes keep the grey, where the accents are light and
-       white on them measured 1.51. */
-    Screen.-light DataTable:focus > .datatable--cursor {
-        background: $primary;
+    /* A themed light palette has a real colour between page and ink, so the
+       bar can simply be the panel tone — a selection, not a hole in the page. */
+    Screen:light DataTable:focus > .datatable--cursor {
+        background: $panel;
     }
 
-    /* Textual paints the scrollbar trough with ansi_white, which in a light
-       palette is a mid grey — darker than the page it runs down. No ANSI slot
-       is lighter than a light background, so the trough cannot be toned down,
-       only dropped: the thumb alone still shows the position. */
-    DataTable, #info-scroll, #conv-scroll {
+    /* Terminal palettes have nothing lighter than a light background: all
+       sixteen slots must stay legible on light paper. There is no soft tone to
+       reach for, so these keep the grey, which at least carries its text. */
+    Screen:ansi:light DataTable:focus > .datatable--cursor {
+        background: ansi_bright_black;
+    }
+
+    /* Light themes get thin bars — on a light page a two-cell bar is a stripe. */
+    Screen:light DataTable,
+    Screen:light #info-scroll,
+    Screen:light #conv-scroll {
+        scrollbar-size-vertical: 1;
+        scrollbar-size-horizontal: 1;
+    }
+
+    /* Textual paints the trough with ansi_white and the thumb with
+       ansi_bright_blue, both chosen for a dark page. On a light terminal the
+       trough comes out darker than the page it runs down, so it goes away
+       entirely, and the thumb drops to the quietest slot there is. */
+    Screen:ansi:light DataTable,
+    Screen:ansi:light #info-scroll,
+    Screen:ansi:light #conv-scroll {
         scrollbar-background: transparent;
         scrollbar-background-hover: transparent;
         scrollbar-background-active: transparent;
         scrollbar-corner-color: transparent;
-        scrollbar-size-horizontal: 1;
+        scrollbar-color: ansi_bright_white;
+        scrollbar-color-hover: ansi_bright_white;
+        scrollbar-color-active: ansi_white;
     }
 
     /* column labels are chrome, not data — cyan/nord8 reads lighter than the
@@ -533,10 +570,6 @@ class CCSessionsApp(App):
         yield Static("", id="status", markup=False)
         yield Footer()
 
-    def _apply_theme_class(self) -> None:
-        """Mark light themes for the CSS, the way -wide/-narrow mark the layout."""
-        self.screen.set_class(not self.current_theme.dark, "-light")
-
     def on_resize(self, event: events.Resize) -> None:
         wide = event.size.width >= self.WIDE_BREAKPOINT
         self.screen.set_class(wide, "-wide")
@@ -545,6 +578,7 @@ class CCSessionsApp(App):
     def on_mount(self) -> None:
         self.title = "Claude Code Sessions"
         self.sub_title = ""
+        self.register_theme(NORD_LIGHT)
         # precedence: env var > theme saved from a previous run > default
         requested = APP_THEME_OVERRIDE or load_settings().get("theme") or "ansi-dark"
         try:
@@ -552,7 +586,6 @@ class CCSessionsApp(App):
         except Exception:
             self.theme = "ansi-dark"  # unknown theme name — fall back
         self._apply_markdown_styles()
-        self._apply_theme_class()
         ptable = self.query_one("#projects-table", DataTable)
         ptable.add_columns(" ", "Project", "Sessions", "Tokens")
         ptable.border_title = "Projects"
@@ -599,7 +632,6 @@ class CCSessionsApp(App):
         settings["theme"] = self.theme
         save_settings(settings)
         self._apply_markdown_styles()
-        self._apply_theme_class()
         # DataTable caches rendered rows, so a theme switch leaves stale
         # colors behind — rebuild both tables, keeping the cursor in place
         ptable = self.query_one("#projects-table", DataTable)
