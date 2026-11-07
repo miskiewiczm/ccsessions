@@ -476,6 +476,38 @@ class CCSessionsApp(App):
         scrollbar-size-horizontal: 0;
     }
 
+    /* Zebra striping is a hint on a dark page and a set of bands on a light
+       one: measured off a render, the rows alternate #E3E6EB and #F1F2F5,
+       which the eye reads as stripes across the panel. Light themes get one
+       even surface instead, a shade above the page so the list still reads
+       as a sheet laid on it. */
+    Screen:light DataTable,
+    Screen:light DataTable > .datatable--odd-row,
+    Screen:light DataTable > .datatable--even-row {
+        background: $background;
+    }
+
+    /* Textual tints a focused widget with 5% of the foreground. On a dark page
+       that is a hint; on a light one it greys the whole pane — measured, the
+       focused table renders #DCE0E8 where the unfocused one renders #E5E9F0.
+       The border and the cursor bar already say which pane has focus. */
+    Screen:light DataTable:focus,
+    Screen:light #info-scroll:focus,
+    Screen:light #conv-scroll:focus {
+        background-tint: transparent;
+    }
+
+    /* The themed thumb lands at 1.86 against the page and all but vanishes;
+       the ANSI blue it replaced was 2.84 and shouted. 70% of the accent sits
+       between them at 2.42 — visible at a glance, quiet up close. */
+    Screen:light DataTable,
+    Screen:light #info-scroll,
+    Screen:light #conv-scroll {
+        scrollbar-color: $primary 70%;
+        scrollbar-color-hover: $primary 85%;
+        scrollbar-color-active: $primary;
+    }
+
     /* Textual paints the trough with ansi_white and the thumb with
        ansi_bright_blue, both chosen for a dark page. On a light terminal the
        trough comes out darker than the page it runs down, so it goes away
@@ -500,6 +532,13 @@ class CCSessionsApp(App):
         background: $boost;
         color: $secondary;
         text-style: bold underline;
+    }
+
+    /* $boost is what lifts the header off a dark page; a themed light palette
+       resolves it to nothing, leaving a band a shade darker than the rows.
+       The underline already marks the header, so the band goes. */
+    Screen:light DataTable > .datatable--header {
+        background: $background;
     }
 
     #preview-content, #conversation-content {

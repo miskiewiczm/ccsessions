@@ -362,3 +362,25 @@ async def _exercise_nord_light() -> None:
 
 def test_nord_light_is_available_and_light():
     asyncio.run(_exercise_nord_light())
+
+
+async def _exercise_focus_leaves_light_tables_untinted() -> None:
+    """Textual tints a focused widget by 5% of the foreground — a stain on a light page."""
+    from textual.widgets import DataTable
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "nord-light"
+            await pilot.pause()
+
+            focused = app.query_one("#projects-table", DataTable)
+            other = app.query_one("#sessions-table", DataTable)
+            assert focused.has_focus and not other.has_focus
+            # the pane with focus is marked by its border, not by a greyer background
+            assert focused.background_colors[1] == other.background_colors[1]
+
+
+def test_focus_leaves_light_tables_untinted():
+    asyncio.run(_exercise_focus_leaves_light_tables_untinted())
