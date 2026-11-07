@@ -444,10 +444,14 @@ class CCSessionsApp(App):
         text-style: bold;
     }
 
-    /* A themed light palette has a real colour between page and ink, so the
-       bar can simply be the panel tone — a selection, not a hole in the page. */
+    /* A themed light palette can mix its own colours, so the bar is a wash of
+       the accent over the page — a selection, not a hole in it. 30% lands at
+       1.41 against the page, next to the 1.49 a macOS selection has; the panel
+       tone alone would be 1.11, which is barely there, and the grey the ANSI
+       themes are stuck with is 6.06. */
     Screen:light DataTable:focus > .datatable--cursor {
-        background: $panel;
+        background: $primary 30%;
+        color: $text;
     }
 
     /* Terminal palettes have nothing lighter than a light background: all
