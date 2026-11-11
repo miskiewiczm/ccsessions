@@ -55,5 +55,7 @@ path = "ccsessions/__init__.py"
 packages = ["ccsessions"]
 
 [tool.hatch.build.targets.sdist]
-# optional Quarto themes — repo only, never shipped in a package
-exclude = ["/extras"]
+# repo-only: optional Quarto themes, and screenshots the README links to by
+# absolute URL — PyPI renders the description from the metadata, never from
+# files inside the archive, so shipping them would buy nothing
+exclude = ["/extras", "/assets"]
