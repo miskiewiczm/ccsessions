@@ -128,6 +128,10 @@ by that directory, so naming one of them leaves the other rows alone.
   backgrounds. On a light terminal prefer a light RGB theme over `ansi-light`:
   a terminal palette has no colour lighter than its own background, so the
   row cursor and scrollbars can only be drawn darker than the page.
+
+  <img src="assets/ccsessions_light_fullscreen.png" alt="ccsessions with the nord-light theme in a fullscreen terminal" width="70%">
+
+  <img src="assets/ccsessions_light_narrow.png" alt="ccsessions with the nord-light theme in a half-screen terminal" width="45%">
 - **Code blocks** — fenced code follows the app theme with a matching
   pygments style. Set `CCSESSIONS_CODE_THEME` to pin a specific one
   (any name from `pygments.styles.get_all_styles()`).
