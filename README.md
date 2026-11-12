@@ -3,7 +3,7 @@
 A fast terminal UI for browsing, previewing, resuming and managing
 [Claude Code](https://claude.com/claude-code) terminal sessions.
 
-![ccsessions in a fullscreen terminal — wide layout with a full-height conversation pane](assets/ccsessions_fullscreen.png)
+![ccsessions in a fullscreen terminal — wide layout with a full-height conversation pane](https://raw.githubusercontent.com/miskiewiczm/ccsessions/main/assets/ccsessions_fullscreen.png)
 
 ## Features
 
@@ -24,7 +24,7 @@ A fast terminal UI for browsing, previewing, resuming and managing
   full-height conversation pane; narrow (half-screen) terminals get a stacked
   layout with a full-width conversation pane:
 
-  <img src="assets/ccsessions_halfscreen.png" alt="ccsessions in a half-screen terminal — stacked layout with a full-width conversation pane" width="70%">
+  <img src="https://raw.githubusercontent.com/miskiewiczm/ccsessions/main/assets/ccsessions_halfscreen.png" alt="ccsessions in a half-screen terminal — stacked layout with a full-width conversation pane" width="70%">
 - **Export** — write a whole session to Markdown (YAML front matter with
   session metadata, then the conversation — ready for Quarto/Pandoc) or copy
   the raw JSONL transcript verbatim; existing files are never overwritten
@@ -124,7 +124,14 @@ by that directory, so naming one of them leaves the other rows alone.
   remembered across runs (`~/.config/ccsessions/settings.json`). The
   `CCSESSIONS_THEME` env var overrides it. The default `ansi-dark` follows
   your terminal's palette and keeps terminal transparency; RGB themes
-  (`nord`, `gruvbox`, `tokyo-night`, `dracula`, …) paint opaque backgrounds.
+  (`nord`, `nord-light`, `gruvbox`, `tokyo-night`, `dracula`, …) paint opaque
+  backgrounds. On a light terminal prefer a light RGB theme over `ansi-light`:
+  a terminal palette has no colour lighter than its own background, so the
+  row cursor and scrollbars can only be drawn darker than the page.
+
+  <img src="https://raw.githubusercontent.com/miskiewiczm/ccsessions/main/assets/ccsessions_light_fullscreen.png" alt="ccsessions with the nord-light theme in a fullscreen terminal" width="70%">
+
+  <img src="https://raw.githubusercontent.com/miskiewiczm/ccsessions/main/assets/ccsessions_light_narrow.png" alt="ccsessions with the nord-light theme in a half-screen terminal" width="45%">
 - **Code blocks** — fenced code follows the app theme with a matching
   pygments style. Set `CCSESSIONS_CODE_THEME` to pin a specific one
   (any name from `pygments.styles.get_all_styles()`).

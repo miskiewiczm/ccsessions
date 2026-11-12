@@ -27,6 +27,8 @@ class TokenStats:
     cache_write: int = 0
     messages: int = 0  # user/assistant message count computed from the JSONL
     custom_title: str = ""  # last name set with /rename, read from the JSONL
+    ai_title: str = ""  # last title Claude Code generated, read from the JSONL
+    first_prompt: str = ""  # first thing the user typed, read from the JSONL
 
     @property
     def total(self) -> int:
