@@ -19,7 +19,6 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
-from textual.widgets._footer import FooterKey
 
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
@@ -49,46 +48,53 @@ CODE_THEME_OVERRIDE = os.environ.get("CCSESSIONS_CODE_THEME", "")
 APP_THEME_OVERRIDE = os.environ.get("CCSESSIONS_THEME", "")
 
 
-_default_footer_key_render = FooterKey.render
-
-
-def _footer_key_render(self: FooterKey) -> Text:
+def _footer_key_render(self) -> Text:
     """Lowercase footer label with its key letter coloured, keys joined by
     " - " (quit - resume - ...).
 
     Keys absent from their label (/, ctrl+r ...) stay in
     front of it, as Textual draws them.
     """
-    if not self.description:
+    try:
+        if not self.description:
+            return _default_footer_key_render(self)
+        key = self.key_display
+        key_style = self.get_component_rich_style("footer-key--key")
+        description_style = self.get_component_rich_style("footer-key--description")
+        padding = self.get_component_styles("footer-key--description").padding
+        description = self.description.lower()
+        label = Text(
+            " " * padding.left + description + " " * padding.right,
+            style=description_style,
+        )
+        index = description.find(key.lower()) if len(key) == 1 else -1
+        if index >= 0:
+            start = padding.left + index
+            label.stylize(key_style, start, start + 1)
+        else:
+            label = Text.assemble((key + " ", key_style), label)
+        if (
+            self.parent is not None
+            and self.parent.children.index(self) > 0
+            and not self.has_class("-command-palette")  # docked apart, on the right
+        ):
+            label = Text.assemble(("- ", description_style), label)
+        label.stylize_before(self.rich_style)
+        return label
+    except Exception:  # a default footer beats a crash in a private API
         return _default_footer_key_render(self)
-    key = self.key_display
-    key_style = self.get_component_rich_style("footer-key--key")
-    description_style = self.get_component_rich_style("footer-key--description")
-    padding = self.get_component_styles("footer-key--description").padding
-    description = self.description.lower()
-    label = Text(
-        " " * padding.left + description + " " * padding.right,
-        style=description_style,
-    )
-    index = description.find(key.lower()) if len(key) == 1 else -1
-    if index >= 0:
-        start = padding.left + index
-        label.stylize(key_style, start, start + 1)
-    else:
-        label = Text.assemble((key + " ", key_style), label)
-    if (
-        self.parent is not None
-        and self.parent.children.index(self) > 0
-        and not self.has_class("-command-palette")  # docked apart, on the right
-    ):
-        label = Text.assemble(("- ", description_style), label)
-    label.stylize_before(self.rich_style)
-    return label
 
 
 # Footer builds FooterKey itself with no hook, so the render is
-# patched; recheck when upgrading Textual (written against 8.2.8)
-FooterKey.render = _footer_key_render
+# patched; recheck when upgrading Textual (written against 8.2.8).
+# FooterKey lives in a private module: if it moves, keep Textual's footer
+try:
+    from textual.widgets._footer import FooterKey
+except ImportError:
+    pass
+else:
+    _default_footer_key_render = FooterKey.render
+    FooterKey.render = _footer_key_render
 
 
 def _eye_glyphs() -> tuple[str, str]:
@@ -493,8 +499,11 @@ class CCSessionsApp(App):
         Binding("n", "rename", "Rename"),
         Binding("e", "export", "Export"),
         Binding("l", "watch", "Live doc"),
+        Binding("w", "watch", "Live doc", show=False),  # former key
         Binding("/", "filter", "Filter"),
         Binding("ctrl+r", "refresh", "Refresh", show=False),
+        # Textual's usual palette key, beside COMMAND_PALETTE_BINDING
+        Binding("ctrl+p", "command_palette", "Palette", show=False),
         Binding("tab", "focus_next", "Next pane", show=False),
         Binding("shift+tab", "focus_previous", "Previous pane", show=False),
         Binding("j", "cursor_down", "Down", show=False),

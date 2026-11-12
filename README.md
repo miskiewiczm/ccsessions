@@ -75,7 +75,7 @@ ccsessions
 | `d` | Delete session / project (with confirmation) |
 | `n` | Rename project (set a display alias) |
 | `e` | Export the session (Markdown or raw JSONL) |
-| `l` | Follow the session in a live Markdown document |
+| `l` | Follow the session in a live Markdown document (`w` also works) |
 | `/` | Filter the focused list (projects or sessions) |
 | `Ctrl+R` | Rescan `~/.claude` now (a rescan also runs automatically) |
 | `q` | Quit |
@@ -120,7 +120,7 @@ by that directory, so naming one of them leaves the other rows alone.
 
 ### Configuration
 
-- **Theme** — switch at runtime with `p` → "Change theme"; the choice is
+- **Theme** — switch at runtime with `p` (or Ctrl+P) → "Change theme"; the choice is
   remembered across runs (`~/.config/ccsessions/settings.json`). The
   `CCSESSIONS_THEME` env var overrides it. The default `ansi-dark` follows
   your terminal's palette and keeps terminal transparency; RGB themes

@@ -208,7 +208,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             details = str(app.query_one("#preview-content", Static).render())
             assert "Live document" in details
 
-            await pilot.press("l")  # stop following
+            await pilot.press("w")  # stop following, with the former key
             await pilot.pause()
             assert doc.is_file()  # the file stays behind
             assert app._watch_state(session) == "stale"
@@ -311,3 +311,28 @@ async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
 
 def test_square_brackets_in_titles_survive(tmp_path):
     asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
+
+
+async def _exercise_footer_and_aliases() -> None:
+    from textual.widgets._footer import FooterKey
+
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            labels = {k.key: k.render().plain for k in app.query(FooterKey)}
+            # the patched render lowercases and joins; Textual's own gives "r Resume"
+            assert labels["r"].strip() in ("resume", "- resume"), labels
+
+            # Ctrl+P still opens the palette, hidden from the footer
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app.screen.__class__.__name__ == "CommandPalette"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert "w" not in labels and "ctrl+p" not in labels
+
+
+def test_footer_renders_patched_labels_and_old_keys_remain():
+    asyncio.run(_exercise_footer_and_aliases())
