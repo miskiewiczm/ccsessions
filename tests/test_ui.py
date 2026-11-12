@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from unittest.mock import patch
 
+from textual.color import Color
+from textual.containers import VerticalScroll
+from textual.widgets import DataTable, Input, Static
+
 import ccsessions.ui.app as appmod
 from ccsessions.core.models import Project, Session
-from textual.widgets import Static
-
-from ccsessions.ui.app import CCSessionsApp
+from ccsessions.ui.app import CCSessionsApp, code_theme_for, number_color
 
 
 def _fake_projects() -> list[Project]:
@@ -39,8 +42,6 @@ async def _exercise_filters() -> None:
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
-            from textual.widgets import DataTable, Input
-
             pt = app.query_one("#projects-table", DataTable)
             st = app.query_one("#sessions-table", DataTable)
             inp = app.query_one("#filter-input", Input)
@@ -88,10 +89,6 @@ def test_filter_projects_and_sessions():
 
 
 async def _exercise_export(tmp_path: Path) -> None:
-    import json
-
-    from textual.widgets import Input
-
     projects = _fake_projects()
     # give the first session a real transcript so the export has content
     transcript = tmp_path / "s1.jsonl"
@@ -128,8 +125,6 @@ def test_export_from_ui(tmp_path):
 
 
 async def _exercise_refresh_keeps_selection() -> None:
-    from textual.widgets import DataTable
-
     state = {"extra": False}
 
     def build(**_kw):
@@ -174,10 +169,6 @@ def test_refresh_keeps_selection():
 
 
 async def _exercise_watch(tmp_path: Path) -> None:
-    import json
-
-    from textual.widgets import DataTable
-
     projects = _fake_projects()
     session = projects[0].sessions[0]
     transcript = tmp_path / "watched.jsonl"
@@ -234,8 +225,6 @@ async def _exercise_refresh_keeps_scroll() -> None:
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
-            from textual.widgets import DataTable
-
             st = app.query_one("#sessions-table", DataTable)
             await pilot.press("tab")  # sessions pane
             for _ in range(40):
@@ -265,8 +254,6 @@ async def _exercise_refresh_keeps_project_sharing_path() -> None:
         async with app.run_test(size=(120, 40)) as pilot:
             await app.workers.wait_for_complete()
             await pilot.pause()
-            from textual.widgets import DataTable
-
             pt = app.query_one("#projects-table", DataTable)
             pt.move_cursor(row=1)
             await pilot.pause()
@@ -284,8 +271,6 @@ def test_refresh_keeps_project_sharing_a_path():
 
 async def _exercise_square_brackets_in_titles(tmp_path: Path) -> None:
     """A session named with /rename can contain anything, including markup."""
-    from textual.widgets import Static
-
     projects = _fake_projects()
     projects[0].sessions[0].summary = "[urgent] refactor the parser"
     app = CCSessionsApp()
@@ -313,9 +298,79 @@ def test_square_brackets_in_titles_survive(tmp_path):
     asyncio.run(_exercise_square_brackets_in_titles(tmp_path))
 
 
-async def _exercise_focused_pane_border() -> None:
-    from textual.color import Color
+def test_counts_keep_their_yellow_when_the_theme_reddens_warnings():
+    """`warning` is a role: ansi-light maps it to bright red, counts are data."""
+    assert number_color("ansi_bright_red") == "ansi_yellow"  # the light ANSI theme
+    assert number_color("ansi_yellow") == "ansi_yellow"  # the dark one, unchanged
+    assert number_color("#ebcb8b") == "#ebcb8b"  # RGB themes bring their own
+    assert number_color(None) == "ansi_yellow"
 
+
+async def _exercise_light_theme_palette() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            for theme, warning in (("ansi-light", "bright_red"), ("ansi-dark", "yellow")):
+                app.theme = theme
+                await pilot.pause()
+                pal = app._palette()
+                assert pal["warning"] == warning  # warnings follow the theme
+                assert pal["number"] == "yellow"  # counts do not turn red
+
+
+def test_counts_stay_yellow_across_ansi_themes():
+    asyncio.run(_exercise_light_theme_palette())
+
+
+async def _exercise_nord_light() -> None:
+    """Textual ships Nord dark only; the light one is ours and must resolve."""
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "nord-light"
+            await pilot.pause()
+
+            th = app.current_theme
+            assert not th.dark  # :light in the stylesheet keys off this
+            assert not th.ansi  # and :ansi must not match, or the greys win
+            # a themed palette has a tone between page and ink for the cursor bar
+            assert th.panel and th.panel != th.background
+            # fenced code must not come out dark on a light page
+            assert code_theme_for("nord-light", th.dark) == "default"
+
+
+def test_nord_light_is_available_and_light():
+    asyncio.run(_exercise_nord_light())
+
+
+async def _exercise_light_panes_share_one_background() -> None:
+    """Four panes, one sheet: no pane darker for holding focus or for being a table."""
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "nord-light"
+            await pilot.pause()
+
+            panes = {
+                "#projects-table": app.query_one("#projects-table", DataTable),
+                "#sessions-table": app.query_one("#sessions-table", DataTable),
+                "#info-scroll": app.query_one("#info-scroll", VerticalScroll),
+                "#conv-scroll": app.query_one("#conv-scroll", VerticalScroll),
+            }
+            # the pane with focus is marked by its border, not by a greyer background
+            assert panes["#projects-table"].has_focus
+            rendered = {name: w.background_colors[1] for name, w in panes.items()}
+            assert len(set(map(str, rendered.values()))) == 1, rendered
+
+
+def test_light_panes_share_one_background():
+    asyncio.run(_exercise_light_panes_share_one_background())
+
+
+async def _exercise_focused_pane_border() -> None:
     with (
         patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
         patch.object(appmod, "load_settings", lambda: {}),
