@@ -49,8 +49,8 @@ def darken(color: object, floor: float = 0.42) -> object:
     if not (isinstance(color, str) and color.startswith("#") and len(color) == 7):
         return color
     r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    r, g, b = colorsys.hls_to_rgb(h, min(l, floor), min(1.0, s * 1.15))
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    r, g, b = colorsys.hls_to_rgb(hue, min(lightness, floor), min(1.0, saturation * 1.15))
     return "#%02x%02x%02x" % tuple(round(c * 255) for c in (r, g, b))
 
 

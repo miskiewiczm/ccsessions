@@ -1,6 +1,6 @@
 [project]
 name = "ccsessions-tui"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Terminal UI for browsing, previewing, resuming and managing Claude Code sessions"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,9 +47,15 @@ testpaths = ["tests"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+# the number lives in the package, so a release touches one line
+path = "ccsessions/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["ccsessions"]
 
 [tool.hatch.build.targets.sdist]
-# optional Quarto themes — repo only, never shipped in a package
-exclude = ["/extras"]
+# repo-only: optional Quarto themes, and screenshots the README links to by
+# absolute URL — PyPI renders the description from the metadata, never from
+# files inside the archive, so shipping them would buy nothing
+exclude = ["/extras", "/assets"]
