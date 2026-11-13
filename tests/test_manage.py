@@ -63,6 +63,20 @@ def test_delete_missing_session_removes_index_entry_only(fake_base):
     assert index["entries"] == []
 
 
+def test_delete_missing_session_with_foreign_full_path(fake_base):
+    # index synced from another machine whose home directory differs
+    proj = fake_base / "-tmp-fake-project"
+    (proj / f"{SID}.jsonl").unlink()
+    index_path = proj / "sessions-index.json"
+    index = json.loads(index_path.read_text())
+    index["entries"][0]["fullPath"] = f"/Users/elsewhere/.claude/projects/-tmp-fake-project/{SID}.jsonl"
+    index_path.write_text(json.dumps(index))
+    s = _session(fake_base)
+    assert s.is_missing
+    delete_session(s)
+    assert json.loads(index_path.read_text())["entries"] == []
+
+
 def test_archive_project_moves_directory(fake_base, tmp_path):
     arch_base = tmp_path / "projects-archive"
     with patch.object(manage, "PROJECTS_ARCHIVE_DIR", arch_base):
