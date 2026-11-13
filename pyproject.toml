@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "textual>=0.80",
+    "textual>=0.80,<9",
 ]
 
 [project.urls]
