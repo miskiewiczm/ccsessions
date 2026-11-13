@@ -1395,10 +1395,7 @@ class CCSessionsApp(App):
                 msg = f"Alias removed — default name “{p.default_name}” restored"
             self._aliases.save()
             p.alias = alias
-            ptable = self.query_one("#projects-table", DataTable)
-            row = ptable.cursor_row
-            self._refresh_projects_table()
-            ptable.move_cursor(row=row)
+            self._refresh_projects_table()  # keeps the cursor on the same project
             self._set_status(msg)
 
         self.push_screen(RenameScreen(p.default_name, p.alias), on_rename)
