@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from textual.color import Color
 from textual.containers import VerticalScroll
 from textual.widgets import DataTable, Input, Static
 
@@ -367,3 +368,32 @@ async def _exercise_light_panes_share_one_background() -> None:
 
 def test_light_panes_share_one_background():
     asyncio.run(_exercise_light_panes_share_one_background())
+
+
+async def _exercise_focused_pane_border() -> None:
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: {}),
+        patch.object(appmod, "save_settings", lambda _s: None),
+    ):
+        app = CCSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "monokai"
+            await pilot.pause()
+            accent = Color.parse(app.current_theme.accent)
+            primary = Color.parse(app.current_theme.primary)
+            projects = app.query_one("#projects-table")
+            sessions = app.query_one("#sessions-table")
+            assert projects.styles.border_top[1] == accent
+            assert sessions.styles.border_top[1] == primary
+
+            # the accent border follows the focus
+            await pilot.press("tab")
+            await pilot.pause()
+            assert projects.styles.border_top[1] == primary
+            assert sessions.styles.border_top[1] == accent
+
+
+def test_focused_pane_border_uses_accent():
+    asyncio.run(_exercise_focused_pane_border())
