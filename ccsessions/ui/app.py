@@ -214,6 +214,8 @@ class Splitter(Widget):
 
     # smallest pane, in cells on either side of the bar (border + one line)
     MIN_CELLS = 3
+    # dragging must not start a text selection in the panes around
+    ALLOW_SELECT = False
 
     class Resized(Message):
         # percent None = back to the CSS default
