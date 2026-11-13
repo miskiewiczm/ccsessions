@@ -1084,7 +1084,7 @@ class CCSessionsApp(App):
                 "stale": f"[{c_muted}]◌ file only — not updating[/]",
             }[watch_state]
             watch_line = (
-                f"\n[bold]Live document[/bold] [{c_muted}](w = toggle)[/]\n"
+                f"\n[bold]Live document[/bold] [{c_muted}](l = toggle)[/]\n"
                 f"{label}\n"
                 f"[{c_primary}]{escape(str(live_doc_path(session)))}[/]\n"
             )
