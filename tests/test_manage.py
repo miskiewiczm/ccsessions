@@ -77,6 +77,16 @@ def test_delete_missing_session_with_foreign_full_path(fake_base):
     assert json.loads(index_path.read_text())["entries"] == []
 
 
+def test_delete_session_reports_index_write_failure(fake_base):
+    index_path = fake_base / "-tmp-fake-project" / "sessions-index.json"
+    before = index_path.read_text()
+    s = _session(fake_base)
+    with patch.object(type(index_path), "replace", side_effect=OSError("disk full")):
+        with pytest.raises(ManageError):
+            delete_session(s)
+    assert index_path.read_text() == before
+
+
 def test_archive_project_moves_directory(fake_base, tmp_path):
     arch_base = tmp_path / "projects-archive"
     with patch.object(manage, "PROJECTS_ARCHIVE_DIR", arch_base):
