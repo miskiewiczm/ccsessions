@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from textual.color import Color
 from textual.containers import VerticalScroll
 from textual.widgets import DataTable, Input, Static
+from textual.widgets._footer import FooterKey
 
 import ccsessions.ui.app as appmod
 from ccsessions.core import settings as settings_mod
@@ -188,7 +190,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             await pilot.press("tab")  # sessions pane
             assert app._watch_state(session) == ""
 
-            await pilot.press("w")  # start following
+            await pilot.press("l")  # start following
             await pilot.pause()
             doc = tmp_path / f"_session_{session.session_id}.md"
             assert doc.is_file()
@@ -199,7 +201,7 @@ async def _exercise_watch(tmp_path: Path) -> None:
             details = str(app.query_one("#preview-content", Static).render())
             assert "Live document" in details
 
-            await pilot.press("w")  # stop following
+            await pilot.press("w")  # stop following, with the former key
             await pilot.pause()
             assert doc.is_file()  # the file stays behind
             assert app._watch_state(session) == "stale"
@@ -408,6 +410,29 @@ def test_reset_layout_command(tmp_path):
     asyncio.run(_exercise_reset_layout(tmp_path))
 
 
+async def _exercise_footer_and_aliases() -> None:
+    app = CCSessionsApp()
+    with patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()):
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            labels = {k.key: k.render().plain for k in app.query(FooterKey)}
+            # the patched render lowercases and joins; Textual's own gives "r Resume"
+            assert labels["r"].strip() in ("resume", "- resume"), labels
+
+            # Ctrl+P still opens the palette, hidden from the footer
+            await pilot.press("ctrl+p")
+            await pilot.pause()
+            assert app.screen.__class__.__name__ == "CommandPalette"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert "w" not in labels and "ctrl+p" not in labels
+
+
+def test_footer_renders_patched_labels_and_old_keys_remain():
+    asyncio.run(_exercise_footer_and_aliases())
+
+
 def test_counts_keep_their_yellow_when_the_theme_reddens_warnings():
     """`warning` is a role: ansi-light maps it to bright red, counts are data."""
     assert number_color("ansi_bright_red") == "ansi_yellow"  # the light ANSI theme
@@ -478,3 +503,32 @@ async def _exercise_light_panes_share_one_background() -> None:
 
 def test_light_panes_share_one_background():
     asyncio.run(_exercise_light_panes_share_one_background())
+
+
+async def _exercise_focused_pane_border() -> None:
+    with (
+        patch.object(appmod, "discover_projects", lambda **_kw: _fake_projects()),
+        patch.object(appmod, "load_settings", lambda: {}),
+        patch.object(appmod, "save_settings", lambda _s: None),
+    ):
+        app = CCSessionsApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            app.theme = "monokai"
+            await pilot.pause()
+            accent = Color.parse(app.current_theme.accent)
+            primary = Color.parse(app.current_theme.primary)
+            projects = app.query_one("#projects-table")
+            sessions = app.query_one("#sessions-table")
+            assert projects.styles.border_top[1] == accent
+            assert sessions.styles.border_top[1] == primary
+
+            # the accent border follows the focus
+            await pilot.press("tab")
+            await pilot.pause()
+            assert projects.styles.border_top[1] == primary
+            assert sessions.styles.border_top[1] == accent
+
+
+def test_focused_pane_border_uses_accent():
+    asyncio.run(_exercise_focused_pane_border())
