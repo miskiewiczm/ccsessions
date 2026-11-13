@@ -56,3 +56,15 @@ def test_growing_file_is_read_incrementally(tmp_path):
     incremental = get_token_stats(f, cache)
     assert incremental == compute_token_stats(f)
     assert incremental.total == 45 and incremental.messages == 6
+
+
+def test_prune_drops_entries_of_gone_files(tmp_path):
+    kept, gone = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    write_transcript(kept)
+    write_transcript(gone)
+    cache = TokenCache(tmp_path / "cache.json")
+    get_token_stats(kept, cache)
+    get_token_stats(gone, cache)
+    cache.prune({str(kept)})
+    cache.save()
+    assert list(TokenCache(tmp_path / "cache.json")._entries) == [str(kept)]
