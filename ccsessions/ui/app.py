@@ -20,6 +20,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.theme import Theme as TextualTheme
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
+from textual.worker import get_current_worker
 
 from ..core.aliases import ProjectAliases
 from ..core.cache import TokenCache
@@ -754,6 +755,9 @@ class CCSessionsApp(App):
             return
         if isinstance(self.focused, Input):  # typing in the filter bar
             return
+        # a thread cannot be stopped, so `exclusive` alone would stack slow scans
+        if any(w.group == "scan" and w.is_running for w in self.workers):
+            return
         self._scan()
 
     @work(thread=True, exclusive=True, group="scan")
@@ -761,6 +765,10 @@ class CCSessionsApp(App):
         """Disk scan off the UI thread — the interface stays responsive."""
         started = time.monotonic()
         projects = discover_projects(cache=self._cache)
+        # superseded by a newer scan: applying this one could undo a fresher result,
+        # and saving would race the newer scan on the cache's .tmp file
+        if get_current_worker().is_cancelled:
+            return
         self._aliases.apply(projects)
         self._cache.save()
         elapsed = time.monotonic() - started
