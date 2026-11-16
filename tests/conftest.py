@@ -5,6 +5,14 @@ from pathlib import Path
 
 import pytest
 
+@pytest.fixture(autouse=True)
+def _isolated_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never let a test write the user's real ~/.config/ccsessions/settings.json."""
+    from ccsessions.core import settings
+
+    monkeypatch.setattr(settings, "DEFAULT_SETTINGS_PATH", tmp_path / "user-settings.json")
+
+
 SID = "11111111-aaaa-bbbb-cccc-000000000001"
 
 
