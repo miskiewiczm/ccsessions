@@ -25,7 +25,7 @@ A fast terminal UI for browsing, previewing, resuming and managing
   layout with a full-width conversation pane:
 
   <img src="https://raw.githubusercontent.com/miskiewiczm/ccsessions/main/assets/ccsessions_halfscreen.png" alt="ccsessions in a half-screen terminal — stacked layout with a full-width conversation pane" width="70%">
-- **Resizable panes** — drag the bars between panes with the mouse; sizes
+- **Resizable panes** — drag the borders between panes with the mouse; sizes
   are remembered per layout across runs (`~/.config/ccsessions/settings.json`)
 - **Export** — write a whole session to Markdown (YAML front matter with
   session metadata, then the conversation — ready for Quarto/Pandoc) or copy

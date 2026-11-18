@@ -18,6 +18,7 @@ from textual.app import App, ComposeResult, SystemCommand
 from textual.color import Color as TextualColor
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
+from textual.errors import NoWidget
 from textual.message import Message
 from textual.screen import ModalScreen, Screen
 from textual.widget import Widget
@@ -240,31 +241,16 @@ def short_path(path: str) -> str:
     return path
 
 
-class Splitter(Widget):
-    """Drag bar that resizes the pane just before it, as a % of the parent.
+class Panes(Container):
+    """#main: drag the border between two panes to resize the pane before it.
 
-    Double-click puts the pane back to its CSS default size.
-
-    Horizontal parent -> the bar is vertical and drags the pane's width;
-    vertical parent -> the bar is horizontal and drags its height.
+    No widget of its own between the panes: the borders already there are the
+    handles, so the panes keep touching. Double-click a border to put the pane
+    back to its CSS default size. Sizes are a % of the pane's parent.
     """
 
-    DEFAULT_CSS = """
-    /* hidden until used: the cell stays in the layout, only the line fades */
-    Splitter {
-        background: $surface;
-        color: $accent;
-        text-opacity: 0%;
-    }
-    Splitter:hover, Splitter.-dragging {
-        text-opacity: 100%;
-    }
-    """
-
-    # smallest pane, in cells on either side of the bar (border + one line)
+    # smallest pane, in cells on either side of the border (border + one line)
     MIN_CELLS = 3
-    # dragging must not start a text selection in the panes around
-    ALLOW_SELECT = False
 
     class Resized(Message):
         # percent None = back to the CSS default
@@ -274,59 +260,81 @@ class Splitter(Widget):
             self.dimension = dimension
             self.percent = percent
 
-    def render(self) -> str:
-        # the axis flips with the wide/narrow layout
-        if self.parent.styles.layout.name == "horizontal":
-            return "\n".join("│" * self.size.height)
-        return "─" * self.size.width
+    _grab: tuple[Widget, str] | None = None
+    _moved = False
 
-    def _pane(self) -> Widget:
-        siblings = self.parent.children
-        return siblings[siblings.index(self) - 1]
+    def _seam_at(self, x: int, y: int) -> tuple[Widget, str] | None:
+        """The pane the border under (x, y) resizes, and along which dimension."""
+        try:
+            widget, _ = self.screen.get_widget_at(x, y)
+        except NoWidget:
+            return None
+        while widget is not self and widget.parent is not None:
+            siblings = widget.parent.children
+            i = siblings.index(widget)
+            r = widget.region
+            if widget.parent.styles.layout.name == "horizontal":
+                dimension, pos, first, last = "width", x, r.x, r.right - 1
+            else:
+                dimension, pos, first, last = "height", y, r.y, r.bottom - 1
+            # either side of the seam: this pane's far border or the next one's near border
+            if pos == last and i + 1 < len(siblings) and widget.id in RESIZABLE_PANES:
+                return widget, dimension
+            if pos == first and i > 0 and siblings[i - 1].id in RESIZABLE_PANES:
+                return siblings[i - 1], dimension
+            widget = widget.parent
+        return None
 
-    def _drag(self, screen_x: int, screen_y: int) -> tuple[str, float]:
-        pane = self._pane()
-        area = self.parent.content_region
-        if self.parent.styles.layout.name == "horizontal":
-            dimension, size, total = "width", screen_x - pane.region.x, area.width
+    def _drag(self, screen_x: int, screen_y: int) -> float:
+        pane, dimension = self._grab
+        area = pane.parent.content_region
+        if dimension == "width":
+            size, total = screen_x - pane.region.x + 1, area.width
         else:
-            dimension, size, total = "height", screen_y - pane.region.y, area.height
-        size = max(self.MIN_CELLS, min(size, total - self.MIN_CELLS - 1))
+            size, total = screen_y - pane.region.y + 1, area.height
+        size = max(self.MIN_CELLS, min(size, total - self.MIN_CELLS))
         # round up: a % rounded down can resolve to one cell less than dragged
         percent = math.ceil(size * 10000 / max(total, 1)) / 100
         setattr(pane.styles, dimension, f"{percent}%")
-        return dimension, percent
+        return percent
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
+        self._grab = self._seam_at(event.screen_x, event.screen_y)
+        if self._grab is None:
+            return
         self.capture_mouse()
-        self.add_class("-dragging")
+        # the press landed in a pane: drop the text selection the screen started
+        self.screen.clear_selection()
         self._moved = False
         event.stop()
 
     def on_mouse_move(self, event: events.MouseMove) -> None:
-        if self.has_class("-dragging"):
+        if self._grab is not None:
             self._moved = True
             self._drag(event.screen_x, event.screen_y)
+            event.stop()
 
     def on_mouse_up(self, event: events.MouseUp) -> None:
-        if not self.has_class("-dragging"):
+        if self._grab is None:
             return
         self.release_mouse()
-        self.remove_class("-dragging")
         # a plain click (no move) must leave the size alone
         if self._moved:
-            dimension, percent = self._drag(event.screen_x, event.screen_y)
-            self.post_message(self.Resized(self._pane().id, dimension, percent))
+            percent = self._drag(event.screen_x, event.screen_y)
+            pane, dimension = self._grab
+            self.post_message(self.Resized(pane.id, dimension, percent))
+        self._grab = None
         event.stop()
 
     def on_click(self, event: events.Click) -> None:
         # quick repeated double-clicks keep counting up (3, 4…), all reset
-        if event.chain >= 2:
-            pane = self._pane()
+        seam = self._seam_at(event.screen_x, event.screen_y)
+        if event.chain >= 2 and seam is not None:
+            pane = seam[0]
             pane.styles.width = None
             pane.styles.height = None
             self.post_message(self.Resized(pane.id, "", None))
-        event.stop()
+            event.stop()
 
 
 class ConfirmScreen(ModalScreen[bool]):
@@ -583,8 +591,6 @@ class CCSessionsApp(App):
     Screen.-wide #sessions-table { height: 40%; width: 100%; }
     Screen.-wide #info-scroll { height: 1fr; width: 100%; }
     Screen.-wide #conv-scroll { width: 1fr; height: 100%; }
-    Screen.-wide #split-main { width: 1; height: 100%; }
-    Screen.-wide #split-group, Screen.-wide #split-sub { height: 1; width: 100%; }
 
     /* Narrow terminal (half screen): #group forms the top half
        (Projects on the left, Sessions above Details on the right),
@@ -596,8 +602,6 @@ class CCSessionsApp(App):
     Screen.-narrow #sessions-table { height: 50%; width: 100%; }
     Screen.-narrow #info-scroll { height: 1fr; width: 100%; }
     Screen.-narrow #conv-scroll { width: 100%; height: 1fr; }
-    Screen.-narrow #split-group { width: 1; height: 100%; }
-    Screen.-narrow #split-main, Screen.-narrow #split-sub { height: 1; width: 100%; }
 
     /* Cursor bar stays neutral so per-cell colors (live dot, eye) survive on
        the highlighted row — with an accent bar, a green eye on green would
@@ -763,31 +767,28 @@ class CCSessionsApp(App):
         # snapshots of the currently displayed (filtered) rows
         self._vprojects: list[Project] = []
         self._vsessions: list[Session] = []
-        # pane sizes dragged with a Splitter, per layout mode:
+        # pane sizes dragged by their borders, per layout mode:
         # {"wide": {"group": {"width": 40.0}}, "narrow": {...}}
         self._layout = _load_layout(load_settings().get("layout"))
         self._mode = ""
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Container(id="main"):
+        with Panes(id="main"):
             with Container(id="group"):
                 yield DataTable(
                     id="projects-table",
                     cursor_type="row",
                     zebra_stripes=True,
                 )
-                yield Splitter(id="split-group")
                 with Container(id="sub"):
                     yield DataTable(
                         id="sessions-table",
                         cursor_type="row",
                         zebra_stripes=True,
                     )
-                    yield Splitter(id="split-sub")
                     with VerticalScroll(id="info-scroll"):
                         yield Static("", id="preview-content", markup=True)
-            yield Splitter(id="split-main")
             with VerticalScroll(id="conv-scroll"):
                 yield Static("", id="conversation-content", markup=False)
         yield FilterInput(id="filter-input")
@@ -814,7 +815,7 @@ class CCSessionsApp(App):
             for dimension, percent in self._layout[self._mode].get(pane_id, {}).items():
                 setattr(pane.styles, dimension, f"{percent}%")
 
-    def on_splitter_resized(self, event: Splitter.Resized) -> None:
+    def on_panes_resized(self, event: Panes.Resized) -> None:
         if event.percent is None:
             self._layout[self._mode].pop(event.pane_id, None)
         else:
