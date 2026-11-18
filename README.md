@@ -120,6 +120,11 @@ by that directory, so naming one of them leaves the other rows alone.
 
 ### Configuration
 
+- **Update check** — on launch ccsessions asks PyPI for the latest release
+  and, when it is newer, shows it with the upgrade command in the header.
+  Nothing is installed for you; offline, nothing is shown. Disable it with
+  `"check_updates": false` in `~/.config/ccsessions/settings.json`.
+  `ccsessions --version` prints the installed version.
 - **Theme** — switch at runtime with `p` (or Ctrl+P) → "Change theme"; the choice is
   remembered across runs (`~/.config/ccsessions/settings.json`). The
   `CCSESSIONS_THEME` env var overrides it. The default `ansi-dark` follows

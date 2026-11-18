@@ -65,3 +65,9 @@ def fake_base(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     return base
+
+
+@pytest.fixture(autouse=True)
+def no_pypi(monkeypatch):
+    """UI tests never reach PyPI; a test opts in by patching it again."""
+    monkeypatch.setattr("ccsessions.ui.app.latest_version", lambda: None)
