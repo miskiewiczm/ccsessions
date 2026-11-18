@@ -58,10 +58,13 @@ def _remove_index_entry(proj_dir: Path, session_id: str) -> None:
     kept = [e for e in entries if not (isinstance(e, dict) and e.get("sessionId") == session_id)]
     if len(kept) != len(entries):
         data["entries"] = kept
+        # the file belongs to Claude Code: never leave it half written
+        tmp = index_path.with_suffix(".tmp")
         try:
-            index_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        except OSError:
-            pass
+            tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            tmp.replace(index_path)
+        except OSError as e:
+            raise ManageError(str(e)) from e
 
 
 def delete_session(session: Session) -> None:
