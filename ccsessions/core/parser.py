@@ -49,17 +49,30 @@ def _prompt_text(content: object) -> str:
 
 
 def compute_token_stats(jsonl_path: Path) -> TokenStats:
-    stats = TokenStats()
+    return _read_token_stats(jsonl_path)[0]
+
+
+def _read_token_stats(
+    jsonl_path: Path, start: int = 0, stats: TokenStats | None = None
+) -> tuple[TokenStats, int]:
+    """Add the records from byte `start` on into `stats`.
+
+    Also returns the offset where reading should resume: a last line that
+    does not parse yet is still being written, so it is left for next time.
+    """
+    stats = stats or TokenStats()
+    end = start
     try:
-        with open(jsonl_path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
+        with open(jsonl_path, "rb") as f:
+            f.seek(start)
+            for raw in f:
                 try:
-                    obj = json.loads(line)
+                    obj = json.loads(raw.decode("utf-8", errors="replace"))
                 except json.JSONDecodeError:
-                    continue
+                    if not raw.endswith(b"\n"):
+                        break
+                    obj = None
+                end += len(raw)
                 if isinstance(obj, dict) and obj.get("type") == "custom-title":
                     title = obj.get("customTitle")
                     if isinstance(title, str):
@@ -86,11 +99,12 @@ def compute_token_stats(jsonl_path: Path) -> TokenStats:
                 stats.cache_write += int(usage.get("cache_creation_input_tokens") or 0)
     except OSError:
         pass
-    return stats
+    return stats, end
 
 
 def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> TokenStats:
-    """Like compute_token_stats, but skips the read when the cache is fresh."""
+    """Like compute_token_stats, but skips the read when the cache is fresh,
+    and reads only the new lines of a transcript that grew (a live session)."""
     if cache is None:
         return compute_token_stats(jsonl_path)
     try:
@@ -100,8 +114,14 @@ def get_token_stats(jsonl_path: Path, cache: "TokenCache | None" = None) -> Toke
     cached = cache.get(jsonl_path, stat)
     if cached is not None:
         return cached
-    stats = compute_token_stats(jsonl_path)
-    cache.put(jsonl_path, stats, stat)
+    prev = cache.get_partial(jsonl_path)
+    # ponytail: a bigger file is assumed appended to, as Claude Code does; one rewritten
+    # to a larger size would be miscounted until its cache entry goes
+    if prev is not None and prev[1] < stat.st_size:
+        stats, end = _read_token_stats(jsonl_path, prev[1], prev[0])
+    else:
+        stats, end = _read_token_stats(jsonl_path)
+    cache.put(jsonl_path, stats, stat, end)
     return stats
 
 

@@ -762,6 +762,7 @@ class CCSessionsApp(App):
         started = time.monotonic()
         projects = discover_projects(cache=self._cache)
         self._aliases.apply(projects)
+        self._cache.prune({str(s.jsonl_path) for p in projects for s in p.sessions})
         self._cache.save()
         elapsed = time.monotonic() - started
         self.call_from_thread(self._apply_projects, projects, elapsed)
